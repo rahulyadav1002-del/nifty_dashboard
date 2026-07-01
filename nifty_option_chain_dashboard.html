@@ -1,0 +1,2506 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Nifty Option Chain Structure Analyzer</title>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <style>
+    :root {
+      --bg: #f4f7fb;
+      --card: #ffffff;
+      --ink: #1f2937;
+      --muted: #64748b;
+      --line: #dbe3ef;
+      --accent: #0b4a7a;
+      --good: #0f766e;
+      --bad: #b91c1c;
+      --warn: #a16207;
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      background: linear-gradient(180deg, #f8fbff, #edf3fb);
+      font-family: "Segoe UI", Tahoma, sans-serif;
+      color: var(--ink);
+    }
+
+    .wrap {
+      max-width: 1240px;
+      margin: 0 auto;
+      padding: 16px;
+    }
+
+    .card {
+      background: var(--card);
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      padding: 14px;
+      margin-bottom: 14px;
+    }
+
+    h1 {
+      margin: 0 0 10px;
+      color: var(--accent);
+      font-size: 1.4rem;
+    }
+
+    h2 {
+      margin: 0 0 10px;
+      color: var(--accent);
+      font-size: 1rem;
+    }
+
+    .disclaimer {
+      background: #fff7e8;
+      border: 1px solid #efd8a3;
+      color: #6b4d00;
+      border-radius: 8px;
+      padding: 10px;
+      font-size: 0.92rem;
+    }
+
+    .row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      align-items: center;
+    }
+
+    input,
+    select,
+    button {
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      padding: 8px 10px;
+      background: #fff;
+    }
+
+    button {
+      cursor: pointer;
+      background: var(--accent);
+      color: #fff;
+      border: none;
+      font-weight: 600;
+    }
+
+    .stats {
+      display: grid;
+      gap: 10px;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+    }
+
+    .stat {
+      border: 1px solid var(--line);
+      border-radius: 10px;
+      padding: 10px;
+      background: #fcfdff;
+    }
+
+    .label {
+      font-size: 0.82rem;
+      color: var(--muted);
+    }
+
+    .value {
+      margin-top: 4px;
+      font-weight: 700;
+    }
+
+    .grid2 {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 12px;
+    }
+
+    .pill {
+      display: inline-block;
+      border-radius: 999px;
+      padding: 4px 10px;
+      margin: 4px 6px 0 0;
+      font-size: 0.8rem;
+      border: 1px solid #d8e5f5;
+      background: #edf5ff;
+    }
+
+    .table-wrap {
+      overflow: auto;
+      border: 1px solid var(--line);
+      border-radius: 10px;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      min-width: 980px;
+      font-size: 0.85rem;
+    }
+
+    th,
+    td {
+      padding: 8px;
+      border-bottom: 1px solid #e8eef8;
+      text-align: right;
+      white-space: nowrap;
+    }
+
+    th {
+      background: #f5f9ff;
+      color: #284e79;
+    }
+
+    th:first-child,
+    td:first-child,
+    th:nth-child(2),
+    td:nth-child(2) {
+      text-align: left;
+    }
+
+    .atm {
+      background: #eaf2ff;
+    }
+
+    .ok {
+      color: var(--good);
+      font-weight: 700;
+    }
+
+    .bad {
+      color: var(--bad);
+      font-weight: 700;
+    }
+
+    .warn {
+      color: var(--warn);
+      font-weight: 700;
+    }
+
+    .tv-wrap {
+      border: 1px solid var(--line);
+      border-radius: 10px;
+      overflow: hidden;
+      min-height: 720px;
+    }
+
+    .trade-grid {
+      display: grid;
+      gap: 10px;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      margin-bottom: 10px;
+    }
+
+    .field {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+
+    .field label {
+      font-size: 0.82rem;
+      color: var(--muted);
+      font-weight: 600;
+    }
+
+    .logic-box {
+      border: 1px solid var(--line);
+      border-radius: 10px;
+      background: #fcfdff;
+      padding: 10px;
+      margin-top: 10px;
+      line-height: 1.45;
+    }
+
+    .small-note {
+      font-size: 0.82rem;
+      color: var(--muted);
+    }
+
+    .status-open {
+      color: var(--warn);
+      font-weight: 700;
+    }
+
+    .status-closed {
+      color: var(--good);
+      font-weight: 700;
+    }
+
+    @media (max-width: 980px) {
+      .stats {
+        grid-template-columns: 1fr 1fr;
+      }
+
+      .grid2 {
+        grid-template-columns: 1fr;
+      }
+    }
+
+    .tab-btn {
+      background: #e8f0fe;
+      color: var(--accent);
+      border: 1px solid #c0d4f0;
+      padding: 8px 20px;
+      border-radius: 8px;
+      cursor: pointer;
+      font-weight: 600;
+      font-size: 0.9rem;
+    }
+    .tab-active {
+      background: var(--accent);
+      color: #fff;
+      border-color: var(--accent);
+    }
+    .regime-badge {
+      display: inline-block;
+      padding: 6px 16px;
+      border-radius: 8px;
+      font-size: 1.05rem;
+      font-weight: 700;
+      margin-top: 4px;
+    }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <section class="card">
+      <h1>Nifty Option Chain Structure Analyzer</h1>
+      <div class="disclaimer">
+        Educational analytics dashboard only. No buy/sell signals, no target/stop recommendations, and no broker trade execution.
+      </div>
+    </section>
+
+    <section class="card">
+      <h2>Live Data Controls</h2>
+      <div class="row">
+        <label>Symbol</label>
+        <select id="symbol">
+          <option value="NIFTY">NIFTY</option>
+          <option value="BANKNIFTY">BANKNIFTY</option>
+        </select>
+        <label>Expiry</label>
+        <select id="expiry">
+          <option value="">Nearest (Auto)</option>
+        </select>
+        <label>Proxy URL</label>
+        <input id="proxyUrl" style="min-width: 340px" value="" placeholder="Auto: this server /api/nse/option-chain" />
+        <button id="refreshBtn">Refresh Now</button>
+        <label><input type="checkbox" id="autoRefresh" checked /> Auto (30s)</label>
+        <span id="lastFetch" class="label"></span>
+      </div>
+    </section>
+
+    <!-- Module Tab Switcher -->
+    <section class="card" style="padding: 10px 14px;">
+      <div class="row" style="gap: 6px;">
+        <button id="tabOptions" class="tab-btn tab-active" onclick="switchModule('options')">Options Analytics</button>
+        <button id="tabFutures" class="tab-btn" onclick="switchModule('futures')">Futures Analytics</button>
+        <span id="futuresLastFetch" class="label" style="margin-left: 8px;"></span>
+      </div>
+    </section>
+
+    <div id="options-module">
+
+    <section class="card">
+      <h2>Analytics Summary</h2>
+      <div class="stats" id="stats"></div>
+    </section>
+
+    <section class="card">
+      <h2>Support / Resistance / Structure</h2>
+      <div class="grid2">
+        <div>
+          <div><strong>Support:</strong> <span id="support"></span></div>
+          <div><strong>Fresh Support:</strong> <span id="freshSupport"></span></div>
+        </div>
+        <div>
+          <div><strong>Resistance:</strong> <span id="resistance"></span></div>
+          <div><strong>Fresh Resistance:</strong> <span id="freshResistance"></span></div>
+        </div>
+      </div>
+      <div style="margin-top: 8px"><strong>Structure Label:</strong> <span id="structureLabel"></span></div>
+      <div><strong>Structure Score:</strong> <span id="structureScore"></span></div>
+      <div id="tags"></div>
+    </section>
+
+    <section class="card">
+      <h2>Trade Setup Logic</h2>
+      <div class="small-note">Educational paper-trading workflow only. Shows two setup types: broader positional trade and conservative high-probability intraday trade.</div>
+
+      <div class="trade-grid">
+        <div class="field">
+          <label>Risk Capital (Rs)</label>
+          <input id="riskCapital" type="number" min="100" step="100" value="1000" />
+        </div>
+        <div class="field">
+          <label>EMA Trend (15m)</label>
+          <select id="emaTrend">
+            <option value="neutral">neutral</option>
+            <option value="bullish">bullish</option>
+            <option value="bearish">bearish</option>
+          </select>
+        </div>
+        <div class="field">
+          <label>RSI Regime</label>
+          <select id="rsiRegime">
+            <option value="neutral">neutral</option>
+            <option value="bullish">bullish</option>
+            <option value="bearish">bearish</option>
+          </select>
+        </div>
+        <div class="field">
+          <label>Candle Confirmation</label>
+          <select id="candleConfirm">
+            <option value="none">none</option>
+            <option value="bullish">bullish</option>
+            <option value="bearish">bearish</option>
+          </select>
+        </div>
+      </div>
+
+      <div class="row">
+        <label><input id="adxStrong" type="checkbox" /> ADX strong</label>
+        <label><input id="zoneTouch" type="checkbox" /> Price reacted at zone</label>
+        <button id="evaluateTradeBtn">Evaluate Setup</button>
+      </div>
+
+      <div class="grid2">
+        <div class="logic-box">
+          <div><strong>Positional Setup</strong></div>
+          <div><strong>Chart Score:</strong> <span id="positionalChartScore">0</span></div>
+          <div><strong>Confluence Score:</strong> <span id="positionalConfluenceScore">0</span></div>
+          <div><strong>Decision:</strong> <span id="positionalDecision">No evaluation yet</span></div>
+          <div><strong>Trade Plan:</strong> <span id="positionalPlan">-</span></div>
+          <div><strong>Expected Reversal Zone:</strong> <span id="positionalReversalZone">-</span></div>
+          <div><strong>Profit Booking Zones:</strong> <span id="positionalProfitZones">-</span></div>
+          <div style="margin-top: 10px"><button id="savePositionalTradeBtn" class="secondary" disabled>Save Positional Trade</button></div>
+        </div>
+
+        <div class="logic-box">
+          <div><strong>Intraday Setup (Conservative)</strong></div>
+          <div><strong>Chart Score:</strong> <span id="intradayChartScore">0</span></div>
+          <div><strong>Confluence Score:</strong> <span id="intradayConfluenceScore">0</span></div>
+          <div><strong>Decision:</strong> <span id="intradayDecision">No evaluation yet</span></div>
+          <div><strong>Trade Plan:</strong> <span id="intradayPlan">-</span></div>
+          <div style="margin-top: 10px"><button id="saveIntradayTradeBtn" class="secondary" disabled>Save Intraday Trade</button></div>
+        </div>
+      </div>
+    </section>
+
+    <section class="card">
+      <h2>OI and OI Change</h2>
+      <div class="grid2">
+        <canvas id="oiChart"></canvas>
+        <canvas id="oiChangeChart"></canvas>
+      </div>
+    </section>
+
+    <section class="card">
+      <h2>Order Flow Analysis (Institutional Metrics)</h2>
+      <div class="grid2">
+        <div class="logic-box">
+          <div><strong>Max Pain Level</strong></div>
+          <div><strong>Strike:</strong> <span id="maxPainStrike">-</span></div>
+          <div><strong>Gamma Pressure:</strong> <span id="maxPainGammaPressure">-</span></div>
+          <div><strong>Hedging Zone:</strong> <span id="maxPainHedgingZone">-</span></div>
+        </div>
+        <div class="logic-box">
+          <div><strong>IV + Volume Divergence</strong></div>
+          <div><strong>Current Status:</strong> <span id="divergenceStatus">Neutral</span></div>
+          <div><strong>Signal:</strong> <span id="divergenceSignal">-</span></div>
+          <div><strong>Persistence (min):</strong> <span id="divergencePersistence">0</span></div>
+        </div>
+      </div>
+      <div class="grid2">
+        <canvas id="greeksFlowChart"></canvas>
+        <canvas id="spotOptionsCorrelationChart"></canvas>
+      </div>
+    </section>
+
+    <section class="card">
+      <h2>Flow Heat Map (Strike × Time Accumulation)</h2>
+      <div class="small-note">Real-time visualization of which strikes are accumulating (↑ green) vs distributing (↓ red). Updated every snapshot.</div>
+      <div id="flowHeatMap" style="overflow-x: auto; background: #fcfdff; border: 1px solid var(--line); border-radius: 10px; padding: 12px; font-size: 0.75rem; font-family: monospace;"></div>
+    </section>
+
+    <section class="card">
+      <h2>Strike Ladder Analysis (Institutional Patterns)</h2>
+      <div class="small-note">Identifies staggered put/call placements indicating institutional positioning. 🔴 = call ladder, 🟢 = put ladder.</div>
+      <div id="strikeLaddersContainer" style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px;"></div>
+    </section>
+
+    <section class="card">
+      <h2>OI Change vs Time (ATM +/- 10 Strikes)</h2>
+      <div class="small-note">Tracks call and put OI change over time for the current ATM strike and 10 strikes above and below it.</div>
+      <div class="row" style="margin: 10px 0 12px;">
+        <label for="oiTimeStrikeSelect">Strike</label>
+        <select id="oiTimeStrikeSelect"></select>
+      </div>
+      <canvas id="oiChangeTimeChart"></canvas>
+    </section>
+
+    <section class="card">
+      <h2>OI Change vs Days (Positional)</h2>
+      <div class="small-note">Tracks daily closing OI change for ATM +/- 10 strikes to understand positional build-up across days.</div>
+      <div class="row" style="margin: 10px 0 12px;">
+        <label for="oiDaysStrikeSelect">Strike</label>
+        <select id="oiDaysStrikeSelect"></select>
+      </div>
+      <canvas id="oiChangeDaysChart"></canvas>
+    </section>
+
+    <section class="card">
+      <h2>Detailed Strike Table</h2>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>Type</th>
+              <th>Strike</th>
+              <th>Call OI</th>
+              <th>Call OI Chg</th>
+              <th>Call Vol</th>
+              <th>Call IV</th>
+              <th>Call LTP</th>
+              <th>Put OI</th>
+              <th>Put OI Chg</th>
+              <th>Put Vol</th>
+              <th>Put IV</th>
+              <th>Put LTP</th>
+              <th>Call OI Δ</th>
+              <th>Put OI Δ</th>
+              <th>Position</th>
+            </tr>
+          </thead>
+          <tbody id="strikeBody"></tbody>
+        </table>
+      </div>
+    </section>
+
+    </div><!-- /options-module -->
+
+    <div id="futures-module" style="display:none;">
+
+      <section class="card">
+        <h2>Futures Analytics — NIFTY Index Futures</h2>
+        <div class="row" style="margin-bottom: 10px;">
+          <label>Futures Proxy URL</label>
+          <input id="futProxyUrl" style="min-width: 340px;" placeholder="Auto-derived from Options proxy (set manually if needed)" />
+          <button id="futRefreshBtn">Refresh Futures</button>
+        </div>
+        <div class="small-note" style="margin-bottom: 8px;">Your Cloudflare Worker must have a <code>/nse/futures?symbol=NIFTY</code> route that fetches from NSE <code>quote-derivative</code> API. See deployment guide.</div>
+        <div class="stats" id="fStats"></div>
+      </section>
+
+      <section class="card">
+        <h2>Futures Regime Signal (Price × OI)</h2>
+        <div class="small-note">Long Buildup &middot; Short Buildup &middot; Short Covering &middot; Long Unwinding &mdash; derived from price direction &times; OI direction.</div>
+        <div class="grid2" style="margin-top: 10px;">
+          <div class="logic-box">
+            <div><strong>Current Regime</strong></div>
+            <div><span id="futRegimeLabel" class="regime-badge warn">--</span></div>
+            <div style="margin-top: 8px;"><strong>Reason:</strong> <span id="futRegimeReason">-</span></div>
+            <div><strong>Confidence:</strong> <span id="futRegimeConfidence">0</span>%</div>
+          </div>
+          <div class="logic-box">
+            <div><strong>Live Snapshot</strong></div>
+            <div><strong>Futures Price:</strong> <span id="futPrice">-</span></div>
+            <div><strong>Spot Price:</strong> <span id="futSpot">-</span></div>
+            <div><strong>Basis (Fut - Spot):</strong> <span id="futBasis">-</span></div>
+            <div><strong>OI:</strong> <span id="futOiVal">-</span></div>
+            <div><strong>OI Change:</strong> <span id="futOiChangeVal">-</span></div>
+            <div><strong>Volume (Contracts):</strong> <span id="futVolVal">-</span></div>
+          </div>
+        </div>
+      </section>
+
+      <section class="card">
+        <h2>Futures OI and OI Change (by Expiry)</h2>
+        <div class="small-note">Current open interest and OI change across near, mid, and far month contracts for rollover context.</div>
+        <div class="grid2" style="margin-top: 10px;">
+          <canvas id="futOiChart"></canvas>
+          <canvas id="futOiChgChart"></canvas>
+        </div>
+      </section>
+
+      <section class="card">
+        <h2>Futures OI Change vs Time (Intraday)</h2>
+        <div class="small-note">Intraday OI change and price overlay for the nearest-expiry NIFTY futures contract. Updated each refresh.</div>
+        <canvas id="futOiTimeChart"></canvas>
+      </section>
+
+      <section class="card">
+        <h2>Futures OI Change vs Days (Positional)</h2>
+        <div class="small-note">Daily closing OI change and basis over the last 90 days for positional trend analysis.</div>
+        <canvas id="futOiDaysChart"></canvas>
+      </section>
+
+    </div><!-- /futures-module -->
+
+    <section class="card">
+      <h2>Paper Trade Journal</h2>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>ID</th>
+              <th>Time</th>
+              <th>Instrument</th>
+              <th>Setup</th>
+              <th>Side</th>
+              <th>Entry</th>
+              <th>Stop</th>
+              <th>Target</th>
+              <th>Qty</th>
+              <th>Status</th>
+              <th>PnL</th>
+              <th>Action</th>
+            </tr>
+          </thead>
+          <tbody id="paperTradeBody"></tbody>
+        </table>
+      </div>
+    </section>
+
+    <section class="card">
+      <h2>TradingView Chart (15m)</h2>
+      <div class="small-note">Chart is for visual confirmation. Option-chain analytics continue to come from NSE proxy data.</div>
+      <div class="tv-wrap" id="tvChart"></div>
+    </section>
+  </div>
+
+  <script>
+    if (!window.TradingView) {
+      const tvScript = document.createElement("script");
+      tvScript.src = "https://s3.tradingview.com/tv.js";
+      tvScript.onload = () => renderTradingView();
+      document.head.appendChild(tvScript);
+    }
+
+    let prevSnapshot = null;
+    let currentSnapshot = null;
+    let currentAnalysis = null;
+    let currentPositionalTrade = null;
+    let currentIntradayTrade = null;
+    let oiChart = null;
+    let oiChgChart = null;
+    let oiChangeTimeChart = null;
+    let oiChangeDaysChart = null;
+    let greeksFlowChart = null;
+    let spotOptionsCorrelationChart = null;
+    let selectedOiTimeStrike = null;
+    let selectedOiDaysStrike = null;
+    let timer = null;
+    let refreshingExpiries = false;
+    let tvWidgetRef = null;
+    let snapshotHistory = [];
+    let activeHistoryKey = "";
+
+    const PAPER_TRADE_KEY = "nifty_paper_trades_v2";
+    const OI_HISTORY_STORAGE_PREFIX = "nifty_oi_history_v2";
+    const PCR_HISTORY_STORAGE_PREFIX = "nifty_pcr_history_v1";
+    const OI_ROC_WINDOW_MS = 3 * 60 * 1000;
+    const SNAPSHOT_HISTORY_LIMIT = 900;
+    const OI_DAILY_HISTORY_STORAGE_PREFIX = "nifty_oi_daily_v1";
+    const DAILY_HISTORY_LIMIT_DAYS = 90;
+    const OI_TIME_STRIKE_RADIUS = 10;
+
+    function getMarketOpenTime() {
+      const now = new Date();
+      const today = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 9, 15, 0, 0);
+      if (now < today) return today.getTime() - (24 * 60 * 60 * 1000);
+      return today.getTime();
+    }
+
+    const byId = (id) => document.getElementById(id);
+    const num = (v) => Number(v || 0);
+    const fmt = (v) => Number(v).toLocaleString("en-IN", { maximumFractionDigits: 2 });
+
+    function tradingViewSymbol(symbol) {
+      return symbol === "BANKNIFTY" ? "NSE:BANKNIFTY" : "NSE:NIFTY";
+    }
+
+    function renderTradingView() {
+      const host = byId("tvChart");
+      if (!host) return;
+      host.innerHTML = "";
+
+      if (typeof TradingView === "undefined") {
+        host.innerHTML = "<div class='small-note' style='padding:12px'>TradingView script is loading. Please refresh in a moment.</div>";
+        return;
+      }
+
+      tvWidgetRef = new TradingView.widget({
+        autosize: true,
+        symbol: tradingViewSymbol(byId("symbol").value),
+        interval: "15",
+        timezone: "Asia/Kolkata",
+        theme: "light",
+        style: "1",
+        locale: "en",
+        enable_publishing: false,
+        allow_symbol_change: false,
+        container_id: "tvChart",
+      });
+    }
+
+    function rrTarget(entry, stop, side, multiple = 2) {
+      const risk = Math.abs(entry - stop);
+      return side === "BUY" ? entry + (multiple * risk) : entry - (multiple * risk);
+    }
+
+    function inferStrikeStep(strikes) {
+      let minStep = Infinity;
+      for (let index = 1; index < strikes.length; index += 1) {
+        const diff = Math.abs(Number(strikes[index]) - Number(strikes[index - 1]));
+        if (diff > 0) minStep = Math.min(minStep, diff);
+      }
+      return Number.isFinite(minStep) ? minStep : 50;
+    }
+
+    function timestampToMillis(value) {
+      const parsed = Date.parse(value || "");
+      return Number.isFinite(parsed) ? parsed : Date.now();
+    }
+
+    function istTradingDateKey() {
+      return new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Kolkata" }).format(new Date());
+    }
+
+    function oiHistoryStorageKey(symbol, expiry) {
+      return `${OI_HISTORY_STORAGE_PREFIX}:${symbol || "NIFTY"}:${expiry || "NA"}:${istTradingDateKey()}`;
+    }
+
+    function oiDailyHistoryStorageKey(symbol, expiry) {
+      return `${OI_DAILY_HISTORY_STORAGE_PREFIX}:${symbol || "NIFTY"}:${expiry || "NA"}`;
+    }
+
+    function pcrHistoryStorageKey(symbol, expiry) {
+      return `${PCR_HISTORY_STORAGE_PREFIX}:${symbol || "NIFTY"}:${expiry || "NA"}`;
+    }
+
+    function loadPcrHistory(symbol, expiry) {
+      const key = pcrHistoryStorageKey(symbol, expiry);
+      try {
+        const raw = localStorage.getItem(key);
+        const parsed = raw ? JSON.parse(raw) : [];
+        if (!Array.isArray(parsed)) return [];
+        return parsed
+          .map((item) => ({
+            dateKey: String((item && item.dateKey) || ""),
+            tsMs: Number(item && item.tsMs),
+            pcrOi: Number(item && item.pcrOi),
+            pcrChange: Number(item && item.pcrChange),
+          }))
+          .filter((item) => item.dateKey && Number.isFinite(item.tsMs) && Number.isFinite(item.pcrOi) && Number.isFinite(item.pcrChange))
+          .sort((a, b) => a.tsMs - b.tsMs)
+          .slice(-90);
+      } catch (_err) {
+        return [];
+      }
+    }
+
+    function savePcrHistory(symbol, expiry, history) {
+      const key = pcrHistoryStorageKey(symbol, expiry);
+      const payload = (Array.isArray(history) ? history.slice(-90) : []);
+      try {
+        localStorage.setItem(key, JSON.stringify(payload));
+      } catch (_err) {
+        // Ignore storage write failures.
+      }
+    }
+
+    function upsertPcrHistory(totalCallOiChange, totalPutOiChange, symbol, expiry) {
+      const pcrOi = totalCallOiChange ? totalPutOiChange / totalCallOiChange : 0;
+      const history = loadPcrHistory(symbol, expiry);
+      const lastEntry = history[history.length - 1] || { pcrOi: 0 };
+      const pcrChange = Number.isFinite(pcrOi) && Number.isFinite(lastEntry.pcrOi) ? pcrOi - lastEntry.pcrOi : 0;
+      const newEntry = { dateKey: istTradingDateKey(), tsMs: Date.now(), pcrOi, pcrChange };
+      const existingIndex = history.findIndex((item) => item.dateKey === newEntry.dateKey);
+      if (existingIndex >= 0) {
+        history[existingIndex] = newEntry;
+      } else {
+        history.push(newEntry);
+      }
+      savePcrHistory(symbol, expiry, history);
+      return history;
+    }
+
+    function detectPositionType(callOiChange, putOiChange, strike, atm) {
+      const tags = [];
+      if (callOiChange > 0) tags.push("call_build");
+      if (callOiChange < 0) tags.push("call_unwind");
+      if (putOiChange > 0) tags.push("put_build");
+      if (putOiChange < 0) tags.push("put_unwind");
+      if (callOiChange > 0 && strike < atm) tags.push("🔴_call_accumulation");
+      if (putOiChange > 0 && strike > atm) tags.push("🟢_put_accumulation");
+      return tags.join(", ");
+    }
+
+    function calculateOiDelta(snapshot, prevSnapshot) {
+      if (!prevSnapshot) return new Map();
+      const deltas = new Map();
+      snapshot.rows.forEach((row) => {
+        const strike = Number(row.strike);
+        const prev = prevSnapshot.rows.find((r) => Number(r.strike) === strike);
+        if (prev) {
+          deltas.set(strike, {
+            callDelta: Number(row.callOiChange) - Number(prev.callOiChange),
+            putDelta: Number(row.putOiChange) - Number(prev.putOiChange),
+          });
+        }
+      });
+      return deltas;
+    }
+
+    function istDateKeyFromMillis(tsMs) {
+      return new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Kolkata" }).format(new Date(tsMs));
+    }
+
+    function loadDailyOiHistory(symbol, expiry) {
+      const key = oiDailyHistoryStorageKey(symbol, expiry);
+      try {
+        const raw = localStorage.getItem(key);
+        const parsed = raw ? JSON.parse(raw) : [];
+        if (!Array.isArray(parsed)) return [];
+        return parsed
+          .map((item) => ({
+            dateKey: String((item && item.dateKey) || ""),
+            tsMs: Number(item && item.tsMs),
+            rowsByStrike: decodeRowsByStrike(item && item.rowsByStrike),
+          }))
+          .filter((item) => item.dateKey && Number.isFinite(item.tsMs) && item.rowsByStrike.size)
+          .sort((a, b) => a.tsMs - b.tsMs)
+          .slice(-DAILY_HISTORY_LIMIT_DAYS);
+      } catch (_err) {
+        return [];
+      }
+    }
+
+    function saveDailyOiHistory(symbol, expiry, history) {
+      const key = oiDailyHistoryStorageKey(symbol, expiry);
+      const payload = (Array.isArray(history) ? history.slice(-DAILY_HISTORY_LIMIT_DAYS) : []).map((item) => ({
+        dateKey: String(item.dateKey || ""),
+        tsMs: Number(item.tsMs),
+        rowsByStrike: encodeRowsByStrike(item.rowsByStrike),
+      }));
+      try {
+        localStorage.setItem(key, JSON.stringify(payload));
+      } catch (_err) {
+        // Ignore storage write failures so chart rendering is never blocked.
+      }
+    }
+
+    function upsertDailyOiHistory(snapshot, oiTimeRows, symbol, expiry) {
+      const tsMs = timestampToMillis(snapshot.timestamp);
+      const dateKey = istDateKeyFromMillis(tsMs);
+      const rowsByStrike = new Map();
+      oiTimeRows.forEach((row) => {
+        rowsByStrike.set(Number(row.strike), {
+          callOiChange: Number(row.callOiChange),
+          putOiChange: Number(row.putOiChange),
+          callIv: Number(row.callIv),
+          putIv: Number(row.putIv),
+        });
+      });
+
+      const history = loadDailyOiHistory(symbol, expiry);
+      const existingIndex = history.findIndex((item) => item.dateKey === dateKey);
+      const nextEntry = { dateKey, tsMs, rowsByStrike };
+
+      if (existingIndex >= 0) {
+        if (tsMs >= history[existingIndex].tsMs) {
+          history[existingIndex] = nextEntry;
+        }
+      } else {
+        history.push(nextEntry);
+      }
+
+      history.sort((a, b) => a.tsMs - b.tsMs);
+      saveDailyOiHistory(symbol, expiry, history);
+      return history.slice(-DAILY_HISTORY_LIMIT_DAYS);
+    }
+
+    function formatDayLabel(dateKey) {
+      const parsed = Date.parse(`${dateKey}T00:00:00+05:30`);
+      if (!Number.isFinite(parsed)) return dateKey;
+      return new Date(parsed).toLocaleDateString("en-IN", {
+        day: "2-digit",
+        month: "short",
+      });
+    }
+
+    function syncOiDaysStrikeSelector(selectedRows, atm, strikeStep) {
+      const select = byId("oiDaysStrikeSelect");
+      const previousValue = selectedOiDaysStrike == null ? "" : String(selectedOiDaysStrike);
+      const availableStrikes = selectedRows.map((row) => Number(row.strike));
+
+      select.innerHTML = "";
+      availableStrikes.forEach((strike) => {
+        const option = document.createElement("option");
+        option.value = String(strike);
+        option.textContent = strikeOffsetLabel(strike, atm, strikeStep);
+        select.appendChild(option);
+      });
+
+      const nextStrike = availableStrikes.includes(Number(previousValue))
+        ? Number(previousValue)
+        : Number(atm);
+
+      selectedOiDaysStrike = nextStrike;
+      select.value = String(nextStrike);
+      return nextStrike;
+    }
+
+    function buildOiChangeDaysChartData(history, selectedStrike) {
+      const labels = history.map((item) => formatDayLabel(item.dateKey));
+      const strike = Number(selectedStrike);
+      const callSeries = history.map((item) => {
+        const row = item.rowsByStrike.get(strike);
+        return row ? Number(row.callOiChange) : null;
+      });
+      const putSeries = history.map((item) => {
+        const row = item.rowsByStrike.get(strike);
+        return row ? Number(row.putOiChange) : null;
+      });
+      const callIvSeries = history.map((item) => {
+        const row = item.rowsByStrike.get(strike);
+        return row && Number.isFinite(Number(row.callIv)) ? Number(row.callIv) : null;
+      });
+      const putIvSeries = history.map((item) => {
+        const row = item.rowsByStrike.get(strike);
+        return row && Number.isFinite(Number(row.putIv)) ? Number(row.putIv) : null;
+      });
+      return {
+        labels,
+        datasets: [
+          {
+            label: `${strike} CE (Daily)`,
+            data: callSeries,
+            borderColor: "rgba(239,68,68,0.95)",
+            backgroundColor: "rgba(239,68,68,0.2)",
+            borderWidth: 2,
+            tension: 0.25,
+            fill: false,
+            spanGaps: true,
+          },
+          {
+            label: `${strike} PE (Daily)`,
+            data: putSeries,
+            borderColor: "rgba(16,185,129,0.95)",
+            backgroundColor: "rgba(16,185,129,0.2)",
+            borderWidth: 2,
+            tension: 0.25,
+            fill: false,
+            borderDash: [7, 4],
+            spanGaps: true,
+          },
+          {
+            label: `${strike} CE IV (Daily)`,
+            data: callIvSeries,
+            borderColor: "rgba(249,115,22,0.95)",
+            backgroundColor: "rgba(249,115,22,0.16)",
+            borderWidth: 2,
+            tension: 0.25,
+            fill: false,
+            yAxisID: "y1",
+            spanGaps: true,
+          },
+          {
+            label: `${strike} PE IV (Daily)`,
+            data: putIvSeries,
+            borderColor: "rgba(59,130,246,0.95)",
+            backgroundColor: "rgba(59,130,246,0.16)",
+            borderWidth: 2,
+            tension: 0.25,
+            fill: false,
+            borderDash: [5, 3],
+            yAxisID: "y1",
+            spanGaps: true,
+          },
+        ],
+      };
+    }
+
+    function trimSnapshotHistoryToSession(items) {
+      const marketOpen = getMarketOpenTime();
+      const filtered = items.filter((item) => item.tsMs >= marketOpen);
+      if (filtered.length > SNAPSHOT_HISTORY_LIMIT) {
+        return filtered.slice(filtered.length - SNAPSHOT_HISTORY_LIMIT);
+      }
+      return filtered;
+    }
+
+    function encodeRowsByStrike(rowsByStrike) {
+      const encoded = [];
+      rowsByStrike.forEach((value, strike) => {
+        encoded.push([
+          Number(strike),
+          Number(value.callOiChange),
+          Number(value.putOiChange),
+          Number(value.callIv),
+          Number(value.putIv),
+        ]);
+      });
+      return encoded;
+    }
+
+    function decodeRowsByStrike(encoded) {
+      const map = new Map();
+      if (Array.isArray(encoded)) {
+        encoded.forEach((entry) => {
+          if (!Array.isArray(entry) || entry.length < 3) return;
+          map.set(Number(entry[0]), {
+            callOiChange: Number(entry[1]),
+            putOiChange: Number(entry[2]),
+            callIv: entry.length > 3 ? Number(entry[3]) : null,
+            putIv: entry.length > 4 ? Number(entry[4]) : null,
+          });
+        });
+        return map;
+      }
+
+      Object.entries(encoded || {}).forEach(([strike, value]) => {
+        map.set(Number(strike), {
+          callOiChange: Number(value.callOiChange),
+          putOiChange: Number(value.putOiChange),
+          callIv: value.callIv != null ? Number(value.callIv) : null,
+          putIv: value.putIv != null ? Number(value.putIv) : null,
+        });
+      });
+      return map;
+    }
+
+    function loadSnapshotHistory(symbol, expiry) {
+      const key = oiHistoryStorageKey(symbol, expiry);
+      activeHistoryKey = key;
+      try {
+        const raw = localStorage.getItem(key);
+        const parsed = raw ? JSON.parse(raw) : [];
+        const restored = Array.isArray(parsed)
+          ? parsed
+            .map((item) => ({ tsMs: Number(item.tsMs), rowsByStrike: decodeRowsByStrike(item.rowsByStrike) }))
+            .filter((item) => Number.isFinite(item.tsMs) && item.rowsByStrike.size)
+          : [];
+        snapshotHistory = trimSnapshotHistoryToSession(restored);
+      } catch (_err) {
+        snapshotHistory = [];
+      }
+    }
+
+    function saveSnapshotHistory(symbol, expiry) {
+      const key = oiHistoryStorageKey(symbol, expiry);
+      activeHistoryKey = key;
+      const payload = snapshotHistory.map((item) => ({
+        tsMs: Number(item.tsMs),
+        rowsByStrike: encodeRowsByStrike(item.rowsByStrike),
+      }));
+      try {
+        localStorage.setItem(key, JSON.stringify(payload));
+      } catch (_err) {
+        // Ignore storage write failures so chart rendering is never blocked.
+      }
+    }
+
+    function ensureSnapshotHistoryContext(symbol, expiry) {
+      const key = oiHistoryStorageKey(symbol, expiry);
+      if (activeHistoryKey !== key) {
+        loadSnapshotHistory(symbol, expiry);
+      }
+    }
+
+    function hydrateSnapshotHistoryFromServer(raw, symbol, expiry) {
+      const history = raw && raw._proxy_oi_history;
+      if (!Array.isArray(history)) return false;
+
+      const restored = history
+        .map((item) => {
+          const tsMs = Number(item && item.tsMs);
+          const rows = Array.isArray(item && item.rows) ? item.rows : [];
+          const rowsByStrike = new Map();
+          rows.forEach((entry) => {
+            if (!Array.isArray(entry) || entry.length < 3) return;
+            rowsByStrike.set(Number(entry[0]), {
+              callOiChange: Number(entry[1]),
+              putOiChange: Number(entry[2]),
+            });
+          });
+          return { tsMs, rowsByStrike };
+        })
+        .filter((item) => Number.isFinite(item.tsMs) && item.rowsByStrike.size);
+
+      snapshotHistory = trimSnapshotHistoryToSession(restored);
+      saveSnapshotHistory(symbol, expiry);
+      return true;
+    }
+
+    function addSnapshotToHistory(snapshot) {
+      const rowsByStrike = new Map();
+      const strikes = snapshot.rows.map((row) => Number(row.strike));
+      const strikeStep = inferStrikeStep(strikes);
+      const atm = Number.isFinite(Number(snapshot.atm)) ? Number(snapshot.atm) : nearestATM(strikes, snapshot.spotPrice);
+      const minStrike = atm - ((OI_TIME_STRIKE_RADIUS + 2) * strikeStep);
+      const maxStrike = atm + ((OI_TIME_STRIKE_RADIUS + 2) * strikeStep);
+
+      snapshot.rows.forEach((row) => {
+        const strike = Number(row.strike);
+        if (strike < minStrike || strike > maxStrike) return;
+        rowsByStrike.set(strike, {
+          callOiChange: Number(row.callOiChange),
+          putOiChange: Number(row.putOiChange),
+          callIv: Number(row.callIv),
+          putIv: Number(row.putIv),
+        });
+      });
+
+        const tsMs = timestampToMillis(snapshot.timestamp);
+        const lastEntry = snapshotHistory[snapshotHistory.length - 1];
+        if (lastEntry && lastEntry.tsMs === tsMs) {
+          snapshotHistory[snapshotHistory.length - 1] = { tsMs, rowsByStrike };
+        } else {
+          snapshotHistory.push({ tsMs, rowsByStrike });
+        }
+      snapshotHistory = trimSnapshotHistoryToSession(snapshotHistory);
+
+      const symbol = byId("symbol").value;
+      const expiry = currentExpiryValue() || snapshot.expiry;
+      saveSnapshotHistory(symbol, expiry);
+    }
+
+    function strikeWindow(rows, centerIndex, radius) {
+      const start = Math.max(0, centerIndex - radius);
+      const end = Math.min(rows.length, centerIndex + radius + 1);
+      return rows.slice(start, end);
+    }
+
+    function formatTimeLabel(tsMs) {
+      return new Date(tsMs).toLocaleTimeString("en-IN", {
+        hour: "2-digit",
+        minute: "2-digit",
+        second: "2-digit",
+      });
+    }
+
+    function strikeOffsetLabel(strike, atm, strikeStep) {
+      const offset = Math.round((Number(strike) - Number(atm)) / (strikeStep || 1));
+      if (offset === 0) return `${strike} (ATM)`;
+      return `${strike} (${offset > 0 ? `ATM + ${offset}` : `ATM - ${Math.abs(offset)}`})`;
+    }
+
+    function syncOiTimeStrikeSelector(selectedRows, atm, strikeStep) {
+      const select = byId("oiTimeStrikeSelect");
+      const previousValue = selectedOiTimeStrike == null ? "" : String(selectedOiTimeStrike);
+      const availableStrikes = selectedRows.map((row) => Number(row.strike));
+
+      select.innerHTML = "";
+      availableStrikes.forEach((strike) => {
+        const option = document.createElement("option");
+        option.value = String(strike);
+        option.textContent = strikeOffsetLabel(strike, atm, strikeStep);
+        select.appendChild(option);
+      });
+
+      const nextStrike = availableStrikes.includes(Number(previousValue))
+        ? Number(previousValue)
+        : Number(atm);
+
+      selectedOiTimeStrike = nextStrike;
+      select.value = String(nextStrike);
+      return nextStrike;
+    }
+
+    function buildOiChangeTimeChartData(selectedStrike) {
+      const labels = snapshotHistory.map((item) => formatTimeLabel(item.tsMs));
+      const callSeries = snapshotHistory.map((item) => {
+        const row = item.rowsByStrike.get(Number(selectedStrike));
+        return row ? Number(row.callOiChange) : null;
+      });
+      const putSeries = snapshotHistory.map((item) => {
+        const row = item.rowsByStrike.get(Number(selectedStrike));
+        return row ? Number(row.putOiChange) : null;
+      });
+      const callIvSeries = snapshotHistory.map((item) => {
+        const row = item.rowsByStrike.get(Number(selectedStrike));
+        return row && Number.isFinite(Number(row.callIv)) ? Number(row.callIv) : null;
+      });
+      const putIvSeries = snapshotHistory.map((item) => {
+        const row = item.rowsByStrike.get(Number(selectedStrike));
+        return row && Number.isFinite(Number(row.putIv)) ? Number(row.putIv) : null;
+      });
+
+      const datasets = [
+        {
+          label: `${selectedStrike} CE`,
+          data: callSeries,
+          borderColor: "rgba(239,68,68,0.95)",
+          backgroundColor: "rgba(239,68,68,0.18)",
+          pointRadius: labels.length <= 1 ? 4 : 0,
+          pointHoverRadius: 3,
+          borderWidth: 2,
+          tension: 0.25,
+          spanGaps: true,
+        },
+        {
+          label: `${selectedStrike} PE`,
+          data: putSeries,
+          borderColor: "rgba(16,185,129,0.95)",
+          backgroundColor: "rgba(16,185,129,0.14)",
+          pointRadius: labels.length <= 1 ? 4 : 0,
+          pointHoverRadius: 3,
+          borderWidth: 2,
+          borderDash: [6, 4],
+          tension: 0.25,
+          spanGaps: true,
+        },
+        {
+          label: `${selectedStrike} CE IV`,
+          data: callIvSeries,
+          borderColor: "rgba(249,115,22,0.95)",
+          backgroundColor: "rgba(249,115,22,0.14)",
+          pointRadius: labels.length <= 1 ? 4 : 0,
+          pointHoverRadius: 3,
+          borderWidth: 2,
+          tension: 0.25,
+          yAxisID: "y1",
+          spanGaps: true,
+        },
+        {
+          label: `${selectedStrike} PE IV`,
+          data: putIvSeries,
+          borderColor: "rgba(59,130,246,0.95)",
+          backgroundColor: "rgba(59,130,246,0.14)",
+          pointRadius: labels.length <= 1 ? 4 : 0,
+          pointHoverRadius: 3,
+          borderWidth: 2,
+          borderDash: [5, 3],
+          tension: 0.25,
+          yAxisID: "y1",
+          spanGaps: true,
+        },
+      ];
+
+      return { labels, datasets };
+    }
+
+    function chartBiasScore(side) {
+      let score = 0;
+      const ema = byId("emaTrend").value;
+      const rsi = byId("rsiRegime").value;
+      const candle = byId("candleConfirm").value;
+      const adx = byId("adxStrong").checked;
+      const zone = byId("zoneTouch").checked;
+
+      if (ema === side) score += 25;
+      if (rsi === side) score += 20;
+      if (candle === side) score += 25;
+      if (adx) score += 15;
+      if (zone) score += 15;
+
+      return Math.min(100, score);
+    }
+
+    function loadTrades() {
+      try {
+        return JSON.parse(localStorage.getItem(PAPER_TRADE_KEY) || "[]");
+      } catch (_err) {
+        return [];
+      }
+    }
+
+    function saveTrades(trades) {
+      localStorage.setItem(PAPER_TRADE_KEY, JSON.stringify(trades));
+    }
+
+    function renderTradeJournal() {
+      const tbody = byId("paperTradeBody");
+      const trades = loadTrades();
+      tbody.innerHTML = "";
+
+      for (const t of trades) {
+        const pnl = t.status === "closed" && t.closePrice != null
+          ? (t.side === "BUY" ? (t.closePrice - t.entry) : (t.entry - t.closePrice)) * t.qty
+          : 0;
+
+        const tr = document.createElement("tr");
+        tr.innerHTML = `
+          <td>${t.id}</td>
+          <td>${new Date(t.ts).toLocaleString()}</td>
+          <td>${t.instrument}</td>
+          <td>${t.setupType || "legacy"}</td>
+          <td>${t.side}</td>
+          <td>${t.entry.toFixed(2)}</td>
+          <td>${t.stop.toFixed(2)}</td>
+          <td>${t.target.toFixed(2)}</td>
+          <td>${t.qty}</td>
+          <td class="${t.status === "open" ? "status-open" : "status-closed"}">${t.status}</td>
+          <td>${pnl.toFixed(2)}</td>
+          <td>${t.status === "open" ? `<button data-close="${t.id}" class="danger">Close</button>` : "-"}</td>
+        `;
+        tbody.appendChild(tr);
+      }
+
+      tbody.querySelectorAll("button[data-close]").forEach((btn) => {
+        btn.addEventListener("click", () => {
+          const id = Number(btn.getAttribute("data-close"));
+          const exit = Number(prompt("Enter manual close price:"));
+          if (!Number.isFinite(exit) || exit <= 0) return;
+
+          const updated = loadTrades().map((x) => (x.id === id ? { ...x, status: "closed", closePrice: exit } : x));
+          saveTrades(updated);
+          renderTradeJournal();
+        });
+      });
+    }
+
+    function setSetupResult(prefix, result) {
+      byId(`${prefix}ChartScore`).textContent = result.chartScore.toFixed(0);
+      byId(`${prefix}ConfluenceScore`).textContent = result.confluence.toFixed(1);
+      byId(`${prefix}Decision`).textContent = result.decision;
+      byId(`${prefix}Plan`).textContent = result.trade
+        ? `${result.trade.side} | Entry ${result.trade.entry.toFixed(2)} | Stop ${result.trade.stop.toFixed(2)} | Target ${result.trade.target.toFixed(2)} | Qty ${result.trade.qty} | ${result.trade.rrLabel}`
+        : "-";
+
+      if (prefix === "positional") {
+        byId("positionalReversalZone").textContent = result.reversalZone || "-";
+        byId("positionalProfitZones").textContent = result.profitZones || "-";
+      }
+    }
+
+    function zoneText(low, high) {
+      if (!Number.isFinite(low) || !Number.isFinite(high)) return "-";
+      const a = Math.min(low, high);
+      const b = Math.max(low, high);
+      return `${a.toFixed(2)} - ${b.toFixed(2)}`;
+    }
+
+    function buildTradeCandidate(setupType, side, entry, stop, target, qty, rrLabel) {
+      return {
+        id: Date.now() + Math.floor(Math.random() * 1000),
+        ts: new Date().toISOString(),
+        instrument: `${byId("symbol").value}-${currentSnapshot.expiry || "AUTO"}`,
+        setupType,
+        side,
+        entry,
+        stop,
+        target,
+        qty,
+        rrLabel,
+        status: "open",
+        closePrice: null,
+      };
+    }
+
+    function evaluatePositionalSetup(entry, riskCapital) {
+      const structure = currentAnalysis.structure;
+      const tags = currentAnalysis.tags || [];
+      const support = currentAnalysis.support;
+      const resistance = currentAnalysis.resistance;
+      const strikeStep = currentAnalysis.strikeStep || 50;
+      const symbol = byId("symbol").value;
+      const buffer = Math.max(strikeStep * 0.5, symbol === "BANKNIFTY" ? 20 : 10);
+
+      let side = "NONE";
+      let decision = "NO TRADE";
+      let stop = null;
+      let target = null;
+      let qty = 0;
+      let chartScore = 0;
+      let confluence = 0;
+      let trade = null;
+      let reversalZone = "-";
+      let profitZones = "-";
+
+      if (["neutral_structure", "high_conflict"].includes(structure.label)) {
+        decision = "NO TRADE: neutral/conflict structure";
+      } else if (
+        structure.label === "bullish_structure" &&
+        structure.score >= 25 &&
+        tags.includes("put_build_up_below_atm") &&
+        tags.includes("strong_support")
+      ) {
+        side = "BUY";
+        chartScore = chartBiasScore("bullish");
+        confluence = (0.65 * structure.score) + (0.35 * chartScore);
+
+        if (chartScore < 60 || confluence < 40 || !support) {
+          decision = "NO TRADE: bullish structure but low positional confluence";
+        } else {
+          stop = Math.min(entry, Number(support.strike)) - buffer;
+          if (stop >= entry) stop = entry - buffer;
+          target = rrTarget(entry, stop, side, 2);
+          const risk = Math.max(entry - stop, 1);
+          qty = Math.floor(riskCapital / risk);
+
+          const pb1 = entry + (1.0 * risk);
+          const pb2 = entry + (1.6 * risk);
+          const rzRef1 = resistance ? Number(resistance.strike) : target;
+          const rzRef2 = currentAnalysis.freshResistance ? Number(currentAnalysis.freshResistance.strike) : rzRef1;
+          reversalZone = zoneText(rzRef1 - (0.5 * strikeStep), rzRef2 + (0.5 * strikeStep));
+          profitZones = `PB1 ${pb1.toFixed(2)} | PB2 ${pb2.toFixed(2)} | Final ${target.toFixed(2)}`;
+
+          decision = qty >= 1 ? "POSITIONAL BUY VALID" : "NO TRADE: risk capital too small";
+        }
+      } else if (
+        structure.label === "bearish_structure" &&
+        structure.score <= -25 &&
+        tags.includes("call_build_up_above_atm") &&
+        tags.includes("strong_resistance")
+      ) {
+        side = "SELL";
+        chartScore = chartBiasScore("bearish");
+        confluence = (0.65 * Math.abs(structure.score)) + (0.35 * chartScore);
+
+        if (chartScore < 60 || confluence < 40 || !resistance) {
+          decision = "NO TRADE: bearish structure but low positional confluence";
+        } else {
+          stop = Math.max(entry, Number(resistance.strike)) + buffer;
+          if (stop <= entry) stop = entry + buffer;
+          target = rrTarget(entry, stop, side, 2);
+          const risk = Math.max(stop - entry, 1);
+          qty = Math.floor(riskCapital / risk);
+
+          const pb1 = entry - (1.0 * risk);
+          const pb2 = entry - (1.6 * risk);
+          const rzRef1 = support ? Number(support.strike) : target;
+          const rzRef2 = currentAnalysis.freshSupport ? Number(currentAnalysis.freshSupport.strike) : rzRef1;
+          reversalZone = zoneText(rzRef1 - (0.5 * strikeStep), rzRef2 + (0.5 * strikeStep));
+          profitZones = `PB1 ${pb1.toFixed(2)} | PB2 ${pb2.toFixed(2)} | Final ${target.toFixed(2)}`;
+
+          decision = qty >= 1 ? "POSITIONAL SELL VALID" : "NO TRADE: risk capital too small";
+        }
+      } else {
+        decision = "NO TRADE: positional structure rule not satisfied";
+      }
+
+      if (side !== "NONE" && stop && target && qty > 0 && decision.includes("VALID")) {
+        trade = buildTradeCandidate("positional", side, entry, stop, target, qty, "RR 1:2");
+      }
+
+      return { chartScore, confluence, decision, trade, reversalZone, profitZones };
+    }
+
+    function evaluateIntradaySetup(entry, riskCapital) {
+      const structure = currentAnalysis.structure;
+      const tags = currentAnalysis.tags || [];
+      const freshSupport = currentAnalysis.freshSupport;
+      const freshResistance = currentAnalysis.freshResistance;
+      const atm = currentAnalysis.atm;
+      const strikeStep = currentAnalysis.strikeStep || 50;
+      const symbol = byId("symbol").value;
+      const config = symbol === "BANKNIFTY"
+        ? { buffer: 20, maxStop: 90, rr: 1.2 }
+        : { buffer: 8, maxStop: 35, rr: 1.2 };
+
+      let side = "NONE";
+      let decision = "NO TRADE";
+      let stop = null;
+      let target = null;
+      let qty = 0;
+      let chartScore = 0;
+      let confluence = 0;
+      let trade = null;
+
+      if (["neutral_structure", "high_conflict"].includes(structure.label)) {
+        decision = "NO TRADE: neutral/conflict structure";
+      } else if (
+        structure.label === "bullish_structure" &&
+        structure.score >= 40 &&
+        tags.includes("put_build_up_below_atm") &&
+        tags.includes("strong_support")
+      ) {
+        side = "BUY";
+        chartScore = chartBiasScore("bullish");
+        confluence = (0.5 * structure.score) + (0.5 * chartScore);
+
+        if (!freshSupport) {
+          decision = "NO TRADE: no fresh support near ATM";
+        } else if (Math.abs(Number(freshSupport.strike) - atm) > (2 * strikeStep)) {
+          decision = "NO TRADE: fresh support too far from ATM";
+        } else if (chartScore < 85 || confluence < 62) {
+          decision = "NO TRADE: conservative intraday filters not met";
+        } else {
+          stop = Math.min(entry, Number(freshSupport.strike)) - config.buffer;
+          if (stop >= entry) stop = entry - config.buffer;
+          const risk = entry - stop;
+          if (risk > config.maxStop) {
+            decision = "NO TRADE: stop too wide for conservative intraday";
+          } else {
+            target = rrTarget(entry, stop, side, config.rr);
+            qty = Math.floor(riskCapital / Math.max(risk, 1));
+            decision = qty >= 1 ? "INTRADAY BUY VALID (CONSERVATIVE)" : "NO TRADE: risk capital too small";
+          }
+        }
+      } else if (
+        structure.label === "bearish_structure" &&
+        structure.score <= -40 &&
+        tags.includes("call_build_up_above_atm") &&
+        tags.includes("strong_resistance")
+      ) {
+        side = "SELL";
+        chartScore = chartBiasScore("bearish");
+        confluence = (0.5 * Math.abs(structure.score)) + (0.5 * chartScore);
+
+        if (!freshResistance) {
+          decision = "NO TRADE: no fresh resistance near ATM";
+        } else if (Math.abs(Number(freshResistance.strike) - atm) > (2 * strikeStep)) {
+          decision = "NO TRADE: fresh resistance too far from ATM";
+        } else if (chartScore < 85 || confluence < 62) {
+          decision = "NO TRADE: conservative intraday filters not met";
+        } else {
+          stop = Math.max(entry, Number(freshResistance.strike)) + config.buffer;
+          if (stop <= entry) stop = entry + config.buffer;
+          const risk = stop - entry;
+          if (risk > config.maxStop) {
+            decision = "NO TRADE: stop too wide for conservative intraday";
+          } else {
+            target = rrTarget(entry, stop, side, config.rr);
+            qty = Math.floor(riskCapital / Math.max(risk, 1));
+            decision = qty >= 1 ? "INTRADAY SELL VALID (CONSERVATIVE)" : "NO TRADE: risk capital too small";
+          }
+        }
+      } else {
+        decision = "NO TRADE: intraday structure rule not satisfied";
+      }
+
+      if (side !== "NONE" && stop && target && qty > 0 && decision.includes("VALID")) {
+        trade = buildTradeCandidate("intraday", side, entry, stop, target, qty, "RR 1:1.2");
+      }
+
+      return { chartScore, confluence, decision, trade };
+    }
+
+    function evaluateTradeSetups() {
+      if (!currentSnapshot || !currentAnalysis) {
+        setSetupResult("positional", { chartScore: 0, confluence: 0, decision: "Waiting for live data", trade: null });
+        setSetupResult("intraday", { chartScore: 0, confluence: 0, decision: "Waiting for live data", trade: null });
+        currentPositionalTrade = null;
+        currentIntradayTrade = null;
+        byId("savePositionalTradeBtn").disabled = true;
+        byId("saveIntradayTradeBtn").disabled = true;
+        return;
+      }
+
+      const entry = currentSnapshot.spotPrice;
+      const riskCapital = Number(byId("riskCapital").value || 0);
+      const positionalResult = evaluatePositionalSetup(entry, riskCapital);
+      const intradayResult = evaluateIntradaySetup(entry, riskCapital);
+
+      currentPositionalTrade = positionalResult.trade;
+      currentIntradayTrade = intradayResult.trade;
+
+      setSetupResult("positional", positionalResult);
+      setSetupResult("intraday", intradayResult);
+
+      byId("savePositionalTradeBtn").disabled = !currentPositionalTrade;
+      byId("saveIntradayTradeBtn").disabled = !currentIntradayTrade;
+        function calculateMaxPain(rows, spotPrice) {
+          if (!rows || rows.length < 3) return { strike: spotPrice, gammaPressure: "unknown", hedgingZone: "-" };
+          const strikes = rows.map((r) => Number(r.strike));
+          const atm = nearestATM(strikes, spotPrice);
+          const atmIdx = rows.findIndex((r) => Number(r.strike) === atm);
+          if (atmIdx < 0) return { strike: atm, gammaPressure: "unknown", hedgingZone: "-" };
+          const nearRows = rows.slice(Math.max(0, atmIdx - 2), Math.min(rows.length, atmIdx + 3));
+          const totalOi = nearRows.reduce((s, r) => s + Number(r.callOi) + Number(r.putOi), 0);
+          const maxPainStrike = nearRows.reduce((best, r) => {
+            const strike = Number(r.strike);
+            const oi = Number(r.callOi) + Number(r.putOi), bestOi = Number(best.callOi) + Number(best.putOi);
+            return oi > bestOi ? r : best;
+          });
+          const maxPainValue = Number(maxPainStrike.strike);
+          const gammaPressure = Math.abs(maxPainValue - atm) < 50 ? "high_nearness" : (Math.abs(maxPainValue - spotPrice) < 100 ? "active" : "low");
+          const hedgeRange = Math.abs(maxPainValue - spotPrice) * 0.5;
+          const hedgingZone = `${(maxPainValue - hedgeRange).toFixed(0)} - ${(maxPainValue + hedgeRange).toFixed(0)}`;
+          return { strike: maxPainValue, gammaPressure, hedgingZone };
+        }
+
+        function detectIvDivergence(current, previous) {
+          if (!current || !previous) return { status: "Neutral", signal: "-", persist: 0 };
+          const currentAvgIv = current.rows.reduce((s, r) => s + Number(r.callIv) + Number(r.putIv), 0) / (current.rows.length * 2 || 1);
+          const prevAvgIv = previous.rows.reduce((s, r) => s + Number(r.callIv) + Number(r.putIv), 0) / (previous.rows.length * 2 || 1);
+          const currentAvgVol = current.rows.reduce((s, r) => s + Number(r.callVolume) + Number(r.putVolume), 0) / (current.rows.length * 2 || 1);
+          const prevAvgVol = previous.rows.reduce((s, r) => s + Number(r.callVolume) + Number(r.putVolume), 0) / (previous.rows.length * 2 || 1);
+          const ivChange = currentAvgIv - prevAvgIv;
+          const volChange = currentAvgVol - prevAvgVol;
+          let status = "Neutral", signal = "-", confidence = 0;
+          if (ivChange > 2 && volChange < -5) { status = "Accumulation"; signal = "IV spike + low volume = institutional buying"; confidence = 8; }
+          else if (ivChange > 1 && volChange < 0) { status = "Accumulation"; signal = "IV up, volume down = positioning"; confidence = 5; }
+          else if (ivChange < -1.5 && volChange > 10) { status = "Distribution"; signal = "IV drop + high volume = unwind"; confidence = 7; }
+          else if (ivChange < 0 && volChange < 0) { status = "Quiet"; signal = "Both declining = quiet period"; confidence = 3; }
+          return { status, signal, persist: confidence };
+        }
+
+        function calculateGreeksFlowWeights(rows) {
+          const callVolume = rows.reduce((s, r) => s + Number(r.callVolume), 0);
+          const putVolume = rows.reduce((s, r) => s + Number(r.putVolume), 0);
+          const callIvAvg = callVolume > 0 ? rows.reduce((s, r) => s + (Number(r.callVolume) * Number(r.callIv)), 0) / callVolume : 0;
+          const putIvAvg = putVolume > 0 ? rows.reduce((s, r) => s + (Number(r.putVolume) * Number(r.putIv)), 0) / putVolume : 0;
+          const callWeighted = callVolume * (callIvAvg / 100 + 0.5);
+          const putWeighted = putVolume * (putIvAvg / 100 + 0.5);
+          return { callVolume, putVolume, callWeighted, putWeighted, callIvAvg, putIvAvg };
+        }
+
+        function analyzeStrikeLadders(rows, atm) {
+          const calls = { aboveAtm: [], belowAtm: [] };
+          const puts = { aboveAtm: [], belowAtm: [] };
+          rows.forEach((r) => {
+            const s = Number(r.strike);
+            const callOi = Number(r.callOi);
+            const putOi = Number(r.putOi);
+            if (s > atm && callOi > 0) calls.aboveAtm.push({ strike: s, oi: callOi, change: Number(r.callOiChange) });
+            if (s < atm && putOi > 0) puts.belowAtm.push({ strike: s, oi: putOi, change: Number(r.putOiChange) });
+            if (s > atm && putOi > 0) puts.aboveAtm.push({ strike: s, oi: putOi, change: Number(r.putOiChange) });
+            if (s < atm && callOi > 0) calls.belowAtm.push({ strike: s, oi: callOi, change: Number(r.callOiChange) });
+          });
+          const callLadder = calls.aboveAtm.length >= 3 && calls.aboveAtm.every((c, i, a) => i === 0 || a[i - 1].strike < c.strike);
+          const putLadder = puts.belowAtm.length >= 3 && puts.belowAtm.every((p, i, a) => i === 0 || a[i - 1].strike < p.strike);
+          const putHedgeLadder = puts.aboveAtm.length >= 2 && puts.aboveAtm.every((p) => p.change > 0);
+          return { callLadder, putLadder, putHedgeLadder, callAbove: calls.aboveAtm.length, putBelow: puts.belowAtm.length };
+        }
+
+        function buildFlowHeatMapData(snapshotHist, strikes, selectedStrike) {
+          if (snapshotHist.length < 2) return "<div class='small-note'>Insufficient history for heat map</div>";
+          const recentSnapshots = snapshotHist.slice(-30);
+          const strikes_ = Array.from(new Set(strikes)).sort((a, b) => a - b);
+          const timeLabels = recentSnapshots.map((s) => formatTimeLabel(s.tsMs));
+          let html = "<table style='width:100%; border-collapse: collapse; font-size: 0.65rem;'><tr><td>Strike</td>";
+          timeLabels.forEach((t) => {
+            html += `<td style='padding:2px; text-align:center; width:3%;'>${t}</td>`;
+          });
+          html += "</tr>";
+          strikes_.forEach((strike) => {
+            const rowClass = selectedStrike && Math.abs(Number(strike) - selectedStrike) < 0.01 ? "style='background:#eef;'" : "";
+            html += `<tr ${rowClass}><td style='padding:4px; font-weight:600;'>${fmt(strike)}</td>`;
+            recentSnapshots.forEach((s) => {
+              const row = s.rowsByStrike.get(Number(strike));
+              if (!row) { html += "<td style='padding:2px;'>-</td>"; return; }
+              const callDelta = Number(row.callOiChange);
+              const putDelta = Number(row.putOiChange);
+              const net = callDelta + putDelta;
+              let color = "#eef", symbol = "·";
+              if (net > 500) { color = "#efe"; symbol = "↑"; }
+              else if (net > 100) { color = "#fef"; symbol = "🟢"; }
+              else if (net < -500) { color = "#fee"; symbol = "↓"; }
+              else if (net < -100) { color = "#f0e"; symbol = "🔴"; }
+              html += `<td style='padding:2px; background:${color}; text-align:center;'>${symbol}</td>`;
+            });
+            html += "</tr>";
+          });
+          html += "</table>";
+          return html;
+        }
+
+        function analyzeSpotOptionsLeading(historyData, spotPriceNow) {
+          if (!historyData || historyData.length < 5) return { leading: "unknown", lag: 0, correlation: 0 };
+          const recentHist = historyData.slice(-10);
+          const optionFlowVelocity = recentHist.map((s) => {
+            let totalFlow = 0;
+            s.rowsByStrike.forEach((v) => { totalFlow += Number(v.callOiChange) + Number(v.putOiChange); });
+            return totalFlow;
+          });
+          const spotVelocities = recentHist.map((_, i) => i === 0 ? 0 : (spotPriceNow - ((recentHist[i - 1] && recentHist[i - 1].spotPrice) || spotPriceNow)));
+          const correlation = optionFlowVelocity.length > 0 ? (optionFlowVelocity.reduce((s, v, i) => s + (v * spotVelocities[i]), 0) / Math.max(optionFlowVelocity.length, 1)) : 0;
+          const leading = correlation > 1000 ? "options leading" : correlation < -1000 ? "spot leading" : "neutral";
+          return { leading, lag: Math.abs(correlation), correlation: (correlation / Math.max(Math.abs(correlation), 1)).toFixed(2) };
+        }
+
+        function detectAnomalies(current, previous) {
+          if (!current || !previous) return { anomalies: [], count: 0 };
+          const anomalies = [];
+          const prevAvgVol = previous.rows.reduce((s, r) => s + Number(r.callVolume) + Number(r.putVolume), 0) / (previous.rows.length * 2 || 1);
+          const currAvgVol = current.rows.reduce((s, r) => s + Number(r.callVolume) + Number(r.putVolume), 0) / (current.rows.length * 2 || 1);
+          if (currAvgVol > prevAvgVol * 2) anomalies.push("Volume spike 2x+");
+          const prevAvgIv = previous.rows.reduce((s, r) => s + Number(r.callIv) + Number(r.putIv), 0) / (previous.rows.length * 2 || 1);
+          const currAvgIv = current.rows.reduce((s, r) => s + Number(r.callIv) + Number(r.putIv), 0) / (current.rows.length * 2 || 1);
+          if (Math.abs(currAvgIv - prevAvgIv) > 5) anomalies.push(`IV jump ${(currAvgIv - prevAvgIv).toFixed(1)}pts`);
+          current.rows.forEach((r) => {
+            const prevRow = previous.rows.find((pr) => Number(pr.strike) === Number(r.strike));
+            if (prevRow) {
+              const callVolSpike = Number(r.callVolume) > Number(prevRow.callVolume) * 3;
+              const putVolSpike = Number(r.putVolume) > Number(prevRow.putVolume) * 3;
+              if (callVolSpike) anomalies.push(`Strike ${r.strike} call vol 3x+`);
+              if (putVolSpike) anomalies.push(`Strike ${r.strike} put vol 3x+`);
+            }
+          });
+          return { anomalies: anomalies.slice(0, 5), count: anomalies.length };
+        }
+
+    }
+
+    function currentExpiryValue() {
+      const el = byId("expiry");
+      return el && el.value ? el.value : "";
+    }
+
+    function defaultProxyUrl() {
+      if (window.location.protocol.startsWith("http")) {
+        return `${window.location.origin}/api/nse/option-chain`;
+      }
+      return "http://localhost:8787/api/nse/option-chain";
+    }
+
+    function proxyEndpoint() {
+      const manual = byId("proxyUrl").value.trim();
+      if (manual) return manual;
+      const fallback = defaultProxyUrl();
+      byId("proxyUrl").value = fallback;
+      return fallback;
+    }
+
+    function syncExpiryOptions(expiryList, selected) {
+      const expiryEl = byId("expiry");
+      const previousValue = selected || currentExpiryValue();
+      const unique = Array.from(new Set((expiryList || []).filter(Boolean)));
+
+      expiryEl.innerHTML = "";
+      const autoOpt = document.createElement("option");
+      autoOpt.value = "";
+      autoOpt.textContent = "Nearest (Auto)";
+      expiryEl.appendChild(autoOpt);
+
+      unique.forEach((expiry) => {
+        const opt = document.createElement("option");
+        opt.value = expiry;
+        opt.textContent = expiry;
+        expiryEl.appendChild(opt);
+      });
+
+      if (previousValue && unique.includes(previousValue)) {
+        expiryEl.value = previousValue;
+      } else {
+        expiryEl.value = "";
+      }
+    }
+
+    async function loadExpiryList() {
+      if (refreshingExpiries) return;
+      refreshingExpiries = true;
+      try {
+        const url = `${proxyEndpoint()}?symbol=${encodeURIComponent(byId("symbol").value)}`;
+        const res = await fetch(url);
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        const raw = await res.json();
+        syncExpiryOptions((raw.records && raw.records.expiryDates) || [], currentExpiryValue());
+      } catch (err) {
+        byId("lastFetch").textContent = `Expiry load failed: ${err.message}`;
+      } finally {
+        refreshingExpiries = false;
+      }
+    }
+
+    function nearestATM(strikes, spot) {
+      return strikes.reduce((best, s) => (Math.abs(s - spot) < Math.abs(best - spot) ? s : best), strikes[0] || 0);
+    }
+
+    function normalizeNse(raw) {
+      const records = raw.records || {};
+      const filtered = raw.filtered || {};
+      const dataRows = records.data || filtered.data || [];
+      const rows = dataRows
+        .filter((d) => d.CE && d.PE)
+        .map((d) => ({
+          strike: num(d.strikePrice != null ? d.strikePrice : (d.CE.strikePrice != null ? d.CE.strikePrice : d.PE.strikePrice)),
+          callOi: num(d.CE.openInterest),
+          callOiChange: num(d.CE.changeinOpenInterest),
+          callVolume: num(d.CE.totalTradedVolume),
+          callIv: num(d.CE.impliedVolatility),
+          callLtp: num(d.CE.lastPrice),
+          putOi: num(d.PE.openInterest),
+          putOiChange: num(d.PE.changeinOpenInterest),
+          putVolume: num(d.PE.totalTradedVolume),
+          putIv: num(d.PE.impliedVolatility),
+          putLtp: num(d.PE.lastPrice),
+        }))
+        .sort((a, b) => a.strike - b.strike);
+
+      const firstPair = dataRows.find((d) => d.CE || d.PE) || {};
+      const firstOption = firstPair.CE || firstPair.PE || {};
+      const expiryDates = records.expiryDates || raw.expiryDates || [];
+
+      return {
+        spotPrice: num(records.underlyingValue != null ? records.underlyingValue : (filtered.underlyingValue != null ? filtered.underlyingValue : firstOption.underlyingValue)),
+        expiry: expiryDates[0] || firstOption.expiryDate || "",
+        timestamp: records.timestamp || new Date().toISOString(),
+        rows,
+      };
+    }
+
+    function structureFrom(snapshot, prev, nearRows) {
+      const callNear = nearRows.reduce((s, r) => s + r.callOiChange, 0);
+      const putNear = nearRows.reduce((s, r) => s + r.putOiChange, 0);
+      const denom = Math.abs(callNear) + Math.abs(putNear) + 1;
+      let score = ((putNear - callNear) / denom) * 100;
+      score = Math.max(-100, Math.min(100, score));
+
+      const bothStrong = Math.abs(callNear) > 10000 && Math.abs(putNear) > 10000;
+      const similar = Math.abs(Math.abs(callNear) - Math.abs(putNear)) / (Math.abs(callNear) + Math.abs(putNear) + 1) < 0.15;
+      const spotUp = prev ? snapshot.spotPrice > prev.spotPrice : false;
+      const spotDown = prev ? snapshot.spotPrice < prev.spotPrice : false;
+
+      let label = "neutral_structure";
+      if (prev && callNear < 0 && spotUp) label = "short_covering";
+      else if (prev && putNear < 0 && spotDown) label = "long_unwinding";
+      else if (bothStrong && similar) label = "high_conflict";
+      else if (putNear > 0 && putNear > callNear * 1.25) label = "bullish_structure";
+      else if (callNear > 0 && callNear > putNear * 1.25) label = "bearish_structure";
+
+      return { score, label };
+    }
+
+    function tagsFrom(rows, atm, support, resistance) {
+      const tags = [];
+      const above = rows.filter((r) => r.strike > atm);
+      const below = rows.filter((r) => r.strike < atm);
+
+      if (above.reduce((s, r) => s + r.callOiChange, 0) > 0) tags.push("call_build_up_above_atm");
+      if (below.reduce((s, r) => s + r.putOiChange, 0) > 0) tags.push("put_build_up_below_atm");
+      if (above.some((r) => r.putOiChange < 0)) tags.push("higher_strike_put_unwinding");
+      if (above.some((r) => r.callOiChange < 0)) tags.push("higher_strike_call_unwinding");
+
+      const avgPut = rows.reduce((s, r) => s + r.putOi, 0) / (rows.length || 1);
+      const avgCall = rows.reduce((s, r) => s + r.callOi, 0) / (rows.length || 1);
+      if (support && support.putOi > avgPut * 1.4) tags.push("strong_support");
+      if (resistance && resistance.callOi > avgCall * 1.4) tags.push("strong_resistance");
+
+      return tags;
+    }
+
+    function render(snapshot) {
+      const rows = snapshot.rows;
+      const strikes = rows.map((r) => r.strike);
+      const atm = nearestATM(strikes, snapshot.spotPrice);
+      const idx = rows.findIndex((r) => r.strike === atm);
+      const strikeStep = inferStrikeStep(strikes);
+
+      const totalCallOi = rows.reduce((s, r) => s + r.callOi, 0);
+      const totalPutOi = rows.reduce((s, r) => s + r.putOi, 0);
+      const totalCallOiChange = rows.reduce((s, r) => s + r.callOiChange, 0);
+      const totalPutOiChange = rows.reduce((s, r) => s + r.putOiChange, 0);
+
+      const pcrOi = totalPutOi / (totalCallOi || 1);
+      const pcrChange = totalPutOiChange / (totalCallOiChange || 1);
+      const callOiAddition = totalCallOiChange > 0 ? totalCallOiChange : 0;
+      const putOiAddition = totalPutOiChange > 0 ? totalPutOiChange : 0;
+      const callOiUnwinding = totalCallOiChange < 0 ? Math.abs(totalCallOiChange) : 0;
+      const putOiUnwinding = totalPutOiChange < 0 ? Math.abs(totalPutOiChange) : 0;
+      const pcrHistory = upsertPcrHistory(totalCallOiChange, totalPutOiChange, byId("symbol").value, snapshot.expiry);
+      const pcrTrend = pcrHistory.length > 1 ? (pcrHistory[pcrHistory.length - 1].pcrChange > 0 ? "↑ Bullish" : "↓ Bearish") : "Neutral";
+      const oiDeltas = calculateOiDelta(snapshot, prevSnapshot);
+  // Order Flow Analysis: Institutional Metrics
+  const maxPain = calculateMaxPain(rows, snapshot.spotPrice);
+  const ivDivergence = detectIvDivergence(snapshot, prevSnapshot);
+  const greeksFlow = calculateGreeksFlowWeights(rows);
+  const strikeLadders = analyzeStrikeLadders(rows, atm);
+  const spotOptionsFlow = analyzeSpotOptionsLeading(snapshotHistory, snapshot.spotPrice);
+  const flowAnomalies = detectAnomalies(snapshot, prevSnapshot);
+
+
+      const support = rows.filter((r) => r.strike <= atm).reduce((a, b) => (!a || b.putOi > a.putOi ? b : a), null);
+      const resistance = rows.filter((r) => r.strike >= atm).reduce((a, b) => (!a || b.callOi > a.callOi ? b : a), null);
+      const freshSupport = rows.filter((r) => r.strike <= atm).reduce((a, b) => (!a || b.putOiChange > a.putOiChange ? b : a), null);
+      const freshResistance = rows.filter((r) => r.strike >= atm).reduce((a, b) => (!a || b.callOiChange > a.callOiChange ? b : a), null);
+
+      addSnapshotToHistory(snapshot);
+
+      const near = rows.slice(Math.max(0, idx - 2), Math.min(rows.length, idx + 3));
+      const oiTimeRows = strikeWindow(rows, idx, OI_TIME_STRIKE_RADIUS);
+      const oiTimeStrike = syncOiTimeStrikeSelector(oiTimeRows, atm, strikeStep);
+      const oiDaysStrike = syncOiDaysStrikeSelector(oiTimeRows, atm, strikeStep);
+      const symbol = byId("symbol").value;
+      const expiry = currentExpiryValue() || snapshot.expiry;
+      const dailyHistory = upsertDailyOiHistory(snapshot, oiTimeRows, symbol, expiry);
+      const structure = structureFrom(snapshot, prevSnapshot, near);
+      const tags = tagsFrom(rows, atm, support, resistance);
+
+      const cards = [
+        ["Spot Price", fmt(snapshot.spotPrice)],
+        ["Expiry", snapshot.expiry],
+        ["Timestamp", snapshot.timestamp],
+        ["ATM Strike", fmt(atm)],
+        ["Total Call OI", fmt(totalCallOi)],
+        ["Total Put OI", fmt(totalPutOi)],
+        ["Total Call OI Change", fmt(totalCallOiChange)],
+        ["Total Put OI Change", fmt(totalPutOiChange)],
+        ["PCR OI", pcrOi.toFixed(3)],
+        ["PCR Change", pcrChange.toFixed(3)],
+        ["PCR Trend", pcrTrend],
+        ["Call OI Addition", fmt(callOiAddition)],
+        ["Put OI Addition", fmt(putOiAddition)],
+        ["Call Unwinding", fmt(callOiUnwinding)],
+        ["Put Unwinding", fmt(putOiUnwinding)],
+      ];
+
+      byId("stats").innerHTML = cards
+        .map(([k, v]) => `<div class=\"stat\"><div class=\"label\">${k}</div><div class=\"value\">${v}</div></div>`)
+        .join("");
+
+      byId("support").textContent = support ? `Strike ${fmt(support.strike)} | Put OI ${fmt(support.putOi)}` : "-";
+      byId("freshSupport").textContent = freshSupport ? `Strike ${fmt(freshSupport.strike)} | Put OI Chg ${fmt(freshSupport.putOiChange)}` : "-";
+      byId("resistance").textContent = resistance ? `Strike ${fmt(resistance.strike)} | Call OI ${fmt(resistance.callOi)}` : "-";
+      byId("freshResistance").textContent = freshResistance ? `Strike ${fmt(freshResistance.strike)} | Call OI Chg ${fmt(freshResistance.callOiChange)}` : "-";
+      // Render Order Flow Analysis
+      byId("maxPainStrike").textContent = fmt(maxPain.strike);
+      byId("maxPainGammaPressure").textContent = maxPain.gammaPressure;
+      byId("maxPainHedgingZone").textContent = maxPain.hedgingZone;
+      byId("divergenceStatus").textContent = ivDivergence.status;
+      byId("divergenceStatus").className = ivDivergence.status === "Accumulation" ? "ok" : (ivDivergence.status === "Distribution" ? "bad" : "warn");
+      byId("divergenceSignal").textContent = ivDivergence.signal;
+      byId("divergencePersistence").textContent = ivDivergence.persist;
+      
+      // Flow Heat Map
+      byId("flowHeatMap").innerHTML = buildFlowHeatMapData(snapshotHistory, strikes, selectedOiTimeStrike);
+      
+      // Strike Ladders
+      const ladderHtml = `
+        <div class="logic-box">
+          <div><strong>🔴 Call Ladders</strong></div>
+          <div>Detected: ${strikeLadders.callLadder ? "YES (bullish)" : "NO"}</div>
+          <div>Calls above ATM: ${strikeLadders.callAbove}</div>
+        </div>
+        <div class="logic-box">
+          <div><strong>🟢 Put Ladders</strong></div>
+          <div>Detected: ${strikeLadders.putLadder ? "YES (bullish)" : "NO"}</div>
+          <div>Puts below ATM: ${strikeLadders.putBelow}</div>
+        </div>
+        <div class="logic-box">
+          <div><strong>🟡 Put Hedges (Protective)</strong></div>
+          <div>Detected: ${strikeLadders.putHedgeLadder ? "YES" : "NO"} (puts above ATM)</div>
+          <div>Flow signal: ${strikeLadders.putHedgeLadder ? "downside protection building" : "no hedging accumulation"}</div>
+        </div>
+        <div class="logic-box">
+          <div><strong>🚨 Anomalies Detected</strong></div>
+          <div>${flowAnomalies.count > 0 ? flowAnomalies.anomalies.map((a) => "• " + a).join("<br/>") : "No anomalies (normal flow)"}</div>
+        </div>
+      `;
+      byId("strikeLaddersContainer").innerHTML = ladderHtml;
+
+      byId("structureLabel").innerHTML = `<span class=\"${structure.label.includes("bullish") ? "ok" : structure.label.includes("bearish") ? "bad" : "warn"}\">${structure.label}</span>`;
+      byId("structureScore").textContent = structure.score.toFixed(2);
+      byId("tags").innerHTML = tags.map((t) => `<span class=\"pill\">${t}</span>`).join("");
+
+      byId("strikeBody").innerHTML = rows
+        .map(
+          (r) => {
+            const strike = Number(r.strike);
+            const delta = oiDeltas.get(strike) || { callDelta: 0, putDelta: 0 };
+            const positionTag = detectPositionType(r.callOiChange, r.putOiChange, strike, atm);
+            return `
+            <tr class=\"${r.strike === atm ? "atm" : ""}\">
+              <td>${r.strike === atm ? "ATM" : "OTM/ITM"}</td>
+              <td>${fmt(r.strike)}</td>
+              <td>${fmt(r.callOi)}</td>
+              <td>${fmt(r.callOiChange)}</td>
+              <td>${fmt(r.callVolume)}</td>
+              <td>${fmt(r.callIv)}</td>
+              <td>${fmt(r.callLtp)}</td>
+              <td>${fmt(r.putOi)}</td>
+              <td>${fmt(r.putOiChange)}</td>
+              <td>${fmt(r.putVolume)}</td>
+              <td>${fmt(r.putIv)}</td>
+              <td>${fmt(r.putLtp)}</td>
+              <td>${delta.callDelta.toFixed(0)}</td>
+              <td>${delta.putDelta.toFixed(0)}</td>
+              <td>${positionTag}</td>
+              </tr>`;
+            }
+          )
+          .join("");
+
+        if (oiChart) oiChart.destroy();
+      if (oiChgChart) oiChgChart.destroy();
+      if (oiChangeTimeChart) oiChangeTimeChart.destroy();
+      if (oiChangeDaysChart) oiChangeDaysChart.destroy();
+  if (greeksFlowChart) greeksFlowChart.destroy();
+  if (spotOptionsCorrelationChart) spotOptionsCorrelationChart.destroy();
+
+
+      greeksFlowChart = new Chart(byId("greeksFlowChart").getContext("2d"), {
+        type: "bar",
+        data: {
+          labels: ["Call", "Put"],
+          datasets: [
+            { label: "Volume", data: [greeksFlow.callVolume, greeksFlow.putVolume], backgroundColor: ["rgba(239,68,68,0.6)", "rgba(16,185,129,0.6)"] },
+            { label: "IV-Weighted", data: [greeksFlow.callWeighted / 1000, greeksFlow.putWeighted / 1000], backgroundColor: ["rgba(239,68,68,0.3)", "rgba(16,185,129,0.3)"] },
+          ],
+        },
+        options: { responsive: true, indexAxis: "x" },
+      });
+
+      spotOptionsCorrelationChart = new Chart(byId("spotOptionsCorrelationChart").getContext("2d"), {
+        type: "doughnut",
+        data: {
+          labels: ["Options Leading", "Spot Leading", "Neutral"],
+          datasets: [{
+            data: [
+              spotOptionsFlow.leading === "options leading" ? 70 : 20,
+              spotOptionsFlow.leading === "spot leading" ? 70 : 20,
+              spotOptionsFlow.leading === "neutral" ? 70 : 20,
+            ],
+            backgroundColor: ["rgba(168,85,247,0.7)", "rgba(59,130,246,0.7)", "rgba(107,114,128,0.7)"],
+          }],
+        },
+        options: { responsive: true, plugins: { legend: { position: "bottom" } } },
+      });
+
+
+      const labels = rows.map((r) => String(r.strike));
+      oiChart = new Chart(byId("oiChart").getContext("2d"), {
+        type: "bar",
+        data: {
+          labels,
+          datasets: [
+            { label: "Call OI", data: rows.map((r) => r.callOi), backgroundColor: "rgba(185,28,28,0.65)" },
+            { label: "Put OI", data: rows.map((r) => r.putOi), backgroundColor: "rgba(15,118,110,0.65)" },
+          ],
+        },
+        options: { responsive: true },
+      });
+
+      oiChgChart = new Chart(byId("oiChangeChart").getContext("2d"), {
+        type: "bar",
+        data: {
+          labels,
+          datasets: [
+            { label: "Call OI Change", data: rows.map((r) => r.callOiChange), backgroundColor: "rgba(239,68,68,0.7)" },
+            { label: "Put OI Change", data: rows.map((r) => r.putOiChange), backgroundColor: "rgba(16,185,129,0.7)" },
+          ],
+        },
+        options: { responsive: true },
+      });
+
+      const oiTimeSeries = buildOiChangeTimeChartData(oiTimeStrike);
+      oiChangeTimeChart = new Chart(byId("oiChangeTimeChart").getContext("2d"), {
+        type: "line",
+        data: oiTimeSeries,
+        options: {
+          responsive: true,
+          maintainAspectRatio: true,
+          interaction: {
+            mode: "nearest",
+            intersect: false,
+          },
+          plugins: {
+            legend: {
+              position: "bottom",
+            },
+            tooltip: {
+              mode: "index",
+              intersect: false,
+            },
+          },
+          scales: {
+            x: {
+              ticks: {
+                maxTicksLimit: 10,
+              },
+            },
+            y: {
+              title: {
+                display: true,
+                text: "OI Change",
+              },
+            },
+            y1: {
+              position: "right",
+              grid: {
+                drawOnChartArea: false,
+              },
+              title: {
+                display: true,
+                text: "IV",
+              },
+            },
+          },
+        },
+      });
+
+      const oiDaysSeries = buildOiChangeDaysChartData(dailyHistory, oiDaysStrike);
+      oiChangeDaysChart = new Chart(byId("oiChangeDaysChart").getContext("2d"), {
+        type: "line",
+        data: oiDaysSeries,
+        options: {
+          responsive: true,
+          maintainAspectRatio: true,
+          interaction: {
+            mode: "nearest",
+            intersect: false,
+          },
+          plugins: {
+            legend: {
+              position: "bottom",
+            },
+            tooltip: {
+              mode: "index",
+              intersect: false,
+            },
+          },
+          scales: {
+            x: {
+              ticks: {
+                maxTicksLimit: 12,
+              },
+            },
+            y: {
+              title: {
+                display: true,
+                text: "Daily OI Change",
+              },
+            },
+            y1: {
+              position: "right",
+              grid: {
+                drawOnChartArea: false,
+              },
+              title: {
+                display: true,
+                text: "IV",
+              },
+            },
+          },
+        },
+      });
+
+      currentSnapshot = snapshot;
+      currentAnalysis = { structure, support, resistance, freshSupport, freshResistance, tags, atm, strikeStep };
+      evaluateTradeSetups();
+
+      prevSnapshot = snapshot;
+    }
+
+    async function refreshData() {
+      try {
+        const params = new URLSearchParams({ symbol: byId("symbol").value });
+        const selectedExpiry = currentExpiryValue();
+        if (selectedExpiry) {
+          params.set("expiry", selectedExpiry);
+        }
+        const url = `${proxyEndpoint()}?${params.toString()}`;
+        const res = await fetch(url);
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        const raw = await res.json();
+        const snapshot = normalizeNse(raw);
+        if (!snapshot.rows.length) throw new Error("No CE/PE rows available");
+
+        syncExpiryOptions((raw.records && raw.records.expiryDates) || [], selectedExpiry || snapshot.expiry);
+        const symbol = byId("symbol").value;
+        const expiry = currentExpiryValue() || snapshot.expiry;
+        if (!hydrateSnapshotHistoryFromServer(raw, symbol, expiry)) {
+          ensureSnapshotHistoryContext(symbol, expiry);
+        }
+
+        render(snapshot);
+        byId("lastFetch").textContent = `Last fetch: ${new Date().toLocaleTimeString()}`;
+      } catch (err) {
+        byId("lastFetch").textContent = `Fetch failed: ${err.message}`;
+      }
+    }
+
+    function syncAutoRefresh() {
+      if (timer) clearInterval(timer);
+      if (byId("autoRefresh").checked) {
+        timer = setInterval(refreshData, 30000);
+      }
+    }
+
+    byId("refreshBtn").addEventListener("click", refreshData);
+    byId("autoRefresh").addEventListener("change", syncAutoRefresh);
+    byId("symbol").addEventListener("change", async () => {
+      selectedOiTimeStrike = null;
+      selectedOiDaysStrike = null;
+      byId("expiry").value = "";
+      await loadExpiryList();
+      await refreshData();
+      renderTradingView();
+    });
+    byId("expiry").addEventListener("change", () => {
+      selectedOiTimeStrike = null;
+      selectedOiDaysStrike = null;
+      refreshData();
+    });
+
+    byId("evaluateTradeBtn").addEventListener("click", evaluateTradeSetups);
+    ["emaTrend", "rsiRegime", "candleConfirm", "adxStrong", "zoneTouch", "riskCapital"].forEach((id) => {
+      byId(id).addEventListener("change", evaluateTradeSetups);
+    });
+    byId("oiTimeStrikeSelect").addEventListener("change", () => {
+      selectedOiTimeStrike = Number(byId("oiTimeStrikeSelect").value || 0);
+      if (currentSnapshot) {
+        render(currentSnapshot);
+      }
+    });
+    byId("oiDaysStrikeSelect").addEventListener("change", () => {
+      selectedOiDaysStrike = Number(byId("oiDaysStrikeSelect").value || 0);
+      if (currentSnapshot) {
+        render(currentSnapshot);
+      }
+    });
+
+    byId("savePositionalTradeBtn").addEventListener("click", () => {
+      if (!currentPositionalTrade) return;
+      const trades = loadTrades();
+      trades.unshift(currentPositionalTrade);
+      saveTrades(trades);
+      currentPositionalTrade = null;
+      byId("savePositionalTradeBtn").disabled = true;
+      renderTradeJournal();
+    });
+
+    byId("saveIntradayTradeBtn").addEventListener("click", () => {
+      if (!currentIntradayTrade) return;
+      const trades = loadTrades();
+      trades.unshift(currentIntradayTrade);
+      saveTrades(trades);
+      currentIntradayTrade = null;
+      byId("saveIntradayTradeBtn").disabled = true;
+      renderTradeJournal();
+    });
+
+    // ========== FUTURES MODULE ==========
+
+    const FUTURES_INTRADAY_PREFIX = "nifty_futures_intraday_v1";
+    const FUTURES_DAILY_PREFIX = "nifty_futures_daily_v1";
+    const FUTURES_INTRADAY_LIMIT = 900;
+    const FUTURES_DAILY_LIMIT = 90;
+
+    var futuresSnapshotHistory = [];
+    var activeFuturesKey = "";
+    var futuresCurrentSnapshot = null;
+    var futuresPrevSnapshot = null;
+    var futOiChart = null;
+    var futOiChgChart = null;
+    var futOiTimeChart = null;
+    var futOiDaysChart = null;
+    var activeModule = "options";
+    var futuresAutoTimer = null;
+
+    function futuresIntradayKey(symbol) {
+      return FUTURES_INTRADAY_PREFIX + ":" + (symbol || "NIFTY") + ":" + istTradingDateKey();
+    }
+
+    function futuresDailyStorageKey(symbol) {
+      return FUTURES_DAILY_PREFIX + ":" + (symbol || "NIFTY");
+    }
+
+    function loadFuturesSnapshotHistory(symbol) {
+      var key = futuresIntradayKey(symbol);
+      activeFuturesKey = key;
+      try {
+        var raw = localStorage.getItem(key);
+        var parsed = raw ? JSON.parse(raw) : [];
+        var items = Array.isArray(parsed) ? parsed : [];
+        var marketOpen = getMarketOpenTime();
+        futuresSnapshotHistory = items
+          .filter(function(x) { return x && Number.isFinite(Number(x.tsMs)) && Number(x.tsMs) >= marketOpen; })
+          .slice(-FUTURES_INTRADAY_LIMIT)
+          .map(function(x) {
+            return { tsMs: Number(x.tsMs), oi: Number(x.oi || 0), oiChange: Number(x.oiChange || 0), futuresPrice: Number(x.futuresPrice || 0), volume: Number(x.volume || 0), basis: Number(x.basis || 0) };
+          });
+      } catch (_e) {
+        futuresSnapshotHistory = [];
+      }
+    }
+
+    function saveFuturesSnapshotHistory(symbol) {
+      var key = futuresIntradayKey(symbol);
+      try { localStorage.setItem(key, JSON.stringify(futuresSnapshotHistory.slice(-FUTURES_INTRADAY_LIMIT))); } catch (_e) {}
+    }
+
+    function addFuturesSnapshotToHistory(snapshot) {
+      var tsMs = Date.now();
+      var entry = { tsMs: tsMs, oi: snapshot.oi, oiChange: snapshot.oiChange, futuresPrice: snapshot.futuresPrice, volume: snapshot.volume, basis: snapshot.basis };
+      var last = futuresSnapshotHistory[futuresSnapshotHistory.length - 1];
+      if (last && Math.abs(last.tsMs - tsMs) < 5000) {
+        futuresSnapshotHistory[futuresSnapshotHistory.length - 1] = entry;
+      } else {
+        futuresSnapshotHistory.push(entry);
+      }
+      var marketOpen = getMarketOpenTime();
+      futuresSnapshotHistory = futuresSnapshotHistory.filter(function(x) { return x.tsMs >= marketOpen; }).slice(-FUTURES_INTRADAY_LIMIT);
+      saveFuturesSnapshotHistory(snapshot.symbol);
+    }
+
+    function loadFuturesDailyHistory(symbol) {
+      var key = futuresDailyStorageKey(symbol);
+      try {
+        var raw = localStorage.getItem(key);
+        var parsed = raw ? JSON.parse(raw) : [];
+        return (Array.isArray(parsed) ? parsed : [])
+          .filter(function(x) { return x && x.dateKey && Number.isFinite(Number(x.tsMs)); })
+          .sort(function(a, b) { return Number(a.tsMs) - Number(b.tsMs); })
+          .slice(-FUTURES_DAILY_LIMIT);
+      } catch (_e) { return []; }
+    }
+
+    function saveFuturesDailyHistory(symbol, history) {
+      var key = futuresDailyStorageKey(symbol);
+      try { localStorage.setItem(key, JSON.stringify((history || []).slice(-FUTURES_DAILY_LIMIT))); } catch (_e) {}
+    }
+
+    function upsertFuturesDailyHistory(snapshot) {
+      var tsMs = Date.now();
+      var dateKey = istDateKeyFromMillis(tsMs);
+      var history = loadFuturesDailyHistory(snapshot.symbol);
+      var entry = { dateKey: dateKey, tsMs: tsMs, oi: snapshot.oi, oiChange: snapshot.oiChange, futuresPrice: snapshot.futuresPrice, volume: snapshot.volume, basis: snapshot.basis };
+      var found = false;
+      for (var i = 0; i < history.length; i++) {
+        if (history[i].dateKey === dateKey) { history[i] = entry; found = true; break; }
+      }
+      if (!found) history.push(entry);
+      history.sort(function(a, b) { return Number(a.tsMs) - Number(b.tsMs); });
+      saveFuturesDailyHistory(snapshot.symbol, history);
+      return history.slice(-FUTURES_DAILY_LIMIT);
+    }
+
+    function normalizeFutures(raw) {
+      var stocks = (raw && raw.stocks) ? raw.stocks : [];
+      var futures = stocks.filter(function(s) {
+        return s && s.metadata && s.metadata.instrumentType === "Index Futures";
+      });
+      if (!futures.length) return null;
+      futures.sort(function(a, b) {
+        var da = new Date((a.metadata && a.metadata.expiryDate) || 0);
+        var db = new Date((b.metadata && b.metadata.expiryDate) || 0);
+        return da - db;
+      });
+      var near = futures[0];
+      var meta = near.metadata || {};
+      var spotPrice = num(meta.underlyingValue);
+      var futuresPrice = num(meta.lastPrice);
+      var basis = futuresPrice - spotPrice;
+      var basisPct = spotPrice ? (basis / spotPrice) * 100 : 0;
+      return {
+        timestamp: new Date().toISOString(),
+        symbol: String(meta.symbol || "NIFTY"),
+        expiry: String(meta.expiryDate || ""),
+        futuresPrice: futuresPrice,
+        spotPrice: spotPrice,
+        oi: num(meta.openInterest),
+        oiChange: num(meta.changeinOpenInterest),
+        volume: num(meta.numberOfContractsTraded),
+        change: num(meta.change),
+        changePct: num(meta.pChange),
+        basis: basis,
+        basisPct: basisPct,
+        allContracts: futures.map(function(f) {
+          var m = f.metadata || {};
+          return { expiry: String(m.expiryDate || ""), oi: num(m.openInterest), oiChange: num(m.changeinOpenInterest), price: num(m.lastPrice) };
+        }),
+      };
+    }
+
+    function analyzeFuturesRegime(current, prev) {
+      if (!current) return { label: "Waiting", confidence: 0, reason: "No data received yet", color: "warn" };
+      if (!prev) return { label: "Neutral", confidence: 0, reason: "Need at least 2 snapshots for regime detection", color: "warn" };
+      var priceUp = current.futuresPrice > prev.futuresPrice;
+      var priceDown = current.futuresPrice < prev.futuresPrice;
+      var oiUp = current.oi > prev.oi;
+      var oiDown = current.oi < prev.oi;
+      var priceDiff = Math.abs(current.futuresPrice - prev.futuresPrice);
+      var oiDiff = Math.abs(current.oi - prev.oi);
+      var oiPct = prev.oi ? (oiDiff / prev.oi) * 100 : 0;
+      var priceConf = Math.min(priceDiff / 20, 1);
+      var oiConf = Math.min(oiPct / 0.5, 1);
+      var confidence = Math.round(((priceConf + oiConf) / 2) * 100);
+      var label, reason, color;
+      if (priceUp && oiUp) {
+        label = "Long Buildup"; reason = "Price rising + OI increasing = fresh longs entering market"; color = "ok";
+      } else if (priceDown && oiUp) {
+        label = "Short Buildup"; reason = "Price falling + OI increasing = fresh shorts entering market"; color = "bad";
+      } else if (priceUp && oiDown) {
+        label = "Short Covering"; reason = "Price rising + OI declining = shorts being squeezed out"; color = "warn";
+      } else if (priceDown && oiDown) {
+        label = "Long Unwinding"; reason = "Price falling + OI declining = longs exiting positions"; color = "warn";
+      } else {
+        label = "Neutral"; reason = "Price and OI showing no clear directional divergence"; color = "warn";
+      }
+      return { label: label, confidence: confidence, reason: reason, color: color };
+    }
+
+    function buildFuturesOiBinData(snapshot) {
+      var contracts = (snapshot && snapshot.allContracts) || [];
+      if (!contracts.length && snapshot) {
+        contracts = [{ expiry: snapshot.expiry, oi: snapshot.oi, oiChange: snapshot.oiChange, price: snapshot.futuresPrice }];
+      }
+      return {
+        labels: contracts.map(function(c) { return c.expiry || "?"; }),
+        oiData: contracts.map(function(c) { return c.oi; }),
+        oiChgData: contracts.map(function(c) { return c.oiChange; }),
+      };
+    }
+
+    function buildFuturesOiTimeData() {
+      var labels = futuresSnapshotHistory.map(function(x) { return formatTimeLabel(x.tsMs); });
+      var oiChgSeries = futuresSnapshotHistory.map(function(x) { return x.oiChange; });
+      var priceSeries = futuresSnapshotHistory.map(function(x) { return x.futuresPrice; });
+      return { labels: labels, oiChgSeries: oiChgSeries, priceSeries: priceSeries };
+    }
+
+    function buildFuturesOiDaysData(dailyHistory) {
+      var labels = (dailyHistory || []).map(function(x) { return formatDayLabel(x.dateKey); });
+      var oiChgSeries = (dailyHistory || []).map(function(x) { return x.oiChange; });
+      var basisSeries = (dailyHistory || []).map(function(x) { return x.basis; });
+      return { labels: labels, oiChgSeries: oiChgSeries, basisSeries: basisSeries };
+    }
+
+    function renderFutures(snapshot) {
+      var regime = analyzeFuturesRegime(snapshot, futuresPrevSnapshot);
+
+      var basisStatus = snapshot.basisPct > 0.5 ? "Premium" : snapshot.basisPct < -0.1 ? "Discount" : "Fair Value";
+      var statsCards = [
+        ["Symbol", snapshot.symbol],
+        ["Active Expiry", snapshot.expiry],
+        ["Futures Price", fmt(snapshot.futuresPrice)],
+        ["Spot Price", fmt(snapshot.spotPrice)],
+        ["Basis", snapshot.basis.toFixed(2) + " (" + snapshot.basisPct.toFixed(3) + "%)"],
+        ["Basis Status", basisStatus],
+        ["OI (Contracts)", fmt(snapshot.oi)],
+        ["OI Change", fmt(snapshot.oiChange)],
+        ["Volume", fmt(snapshot.volume)],
+        ["Price Change %", snapshot.changePct.toFixed(2) + "%"],
+        ["Regime", regime.label],
+        ["Regime Confidence", regime.confidence + "%"],
+      ];
+      byId("fStats").innerHTML = statsCards.map(function(pair) {
+        return "<div class=\"stat\"><div class=\"label\">" + pair[0] + "</div><div class=\"value\">" + pair[1] + "</div></div>";
+      }).join("");
+
+      var regLabel = byId("futRegimeLabel");
+      regLabel.textContent = regime.label;
+      regLabel.className = "regime-badge " + (regime.color === "ok" ? "ok" : regime.color === "bad" ? "bad" : "warn");
+      byId("futRegimeReason").textContent = regime.reason;
+      byId("futRegimeConfidence").textContent = regime.confidence;
+
+      byId("futPrice").textContent = fmt(snapshot.futuresPrice);
+      byId("futSpot").textContent = fmt(snapshot.spotPrice);
+      byId("futBasis").textContent = snapshot.basis.toFixed(2) + " (" + snapshot.basisPct.toFixed(3) + "%)";
+      byId("futOiVal").textContent = fmt(snapshot.oi);
+      byId("futOiChangeVal").textContent = fmt(snapshot.oiChange);
+      byId("futVolVal").textContent = fmt(snapshot.volume);
+
+      addFuturesSnapshotToHistory(snapshot);
+      var dailyHistory = upsertFuturesDailyHistory(snapshot);
+
+      if (futOiChart) { futOiChart.destroy(); futOiChart = null; }
+      if (futOiChgChart) { futOiChgChart.destroy(); futOiChgChart = null; }
+      if (futOiTimeChart) { futOiTimeChart.destroy(); futOiTimeChart = null; }
+      if (futOiDaysChart) { futOiDaysChart.destroy(); futOiDaysChart = null; }
+
+      var binData = buildFuturesOiBinData(snapshot);
+      futOiChart = new Chart(byId("futOiChart").getContext("2d"), {
+        type: "bar",
+        data: {
+          labels: binData.labels,
+          datasets: [{ label: "Open Interest", data: binData.oiData, backgroundColor: "rgba(59,130,246,0.65)", borderColor: "rgba(59,130,246,1)", borderWidth: 1 }],
+        },
+        options: { responsive: true, plugins: { title: { display: true, text: "OI by Expiry" } }, scales: { y: { title: { display: true, text: "OI (contracts)" } } } },
+      });
+
+      futOiChgChart = new Chart(byId("futOiChgChart").getContext("2d"), {
+        type: "bar",
+        data: {
+          labels: binData.labels,
+          datasets: [{ label: "OI Change", data: binData.oiChgData, backgroundColor: binData.oiChgData.map(function(v) { return v >= 0 ? "rgba(16,185,129,0.65)" : "rgba(239,68,68,0.65)"; }), borderWidth: 1 }],
+        },
+        options: { responsive: true, plugins: { title: { display: true, text: "OI Change by Expiry" } }, scales: { y: { title: { display: true, text: "OI Change" } } } },
+      });
+
+      var timeData = buildFuturesOiTimeData();
+      futOiTimeChart = new Chart(byId("futOiTimeChart").getContext("2d"), {
+        type: "line",
+        data: {
+          labels: timeData.labels,
+          datasets: [
+            { label: "OI Change", data: timeData.oiChgSeries, borderColor: "rgba(59,130,246,0.9)", backgroundColor: "rgba(59,130,246,0.12)", borderWidth: 2, tension: 0.25, spanGaps: true, yAxisID: "y" },
+            { label: "Futures Price", data: timeData.priceSeries, borderColor: "rgba(249,115,22,0.9)", backgroundColor: "rgba(249,115,22,0.08)", borderWidth: 2, tension: 0.25, spanGaps: true, borderDash: [5, 3], yAxisID: "y1" },
+          ],
+        },
+        options: { responsive: true, scales: { y: { title: { display: true, text: "OI Change" } }, y1: { position: "right", grid: { drawOnChartArea: false }, title: { display: true, text: "Futures Price" } } } },
+      });
+
+      var daysData = buildFuturesOiDaysData(dailyHistory);
+      futOiDaysChart = new Chart(byId("futOiDaysChart").getContext("2d"), {
+        type: "line",
+        data: {
+          labels: daysData.labels,
+          datasets: [
+            { label: "Daily OI Change", data: daysData.oiChgSeries, borderColor: "rgba(59,130,246,0.9)", backgroundColor: "rgba(59,130,246,0.12)", borderWidth: 2, tension: 0.25, spanGaps: true, yAxisID: "y" },
+            { label: "Basis (pts)", data: daysData.basisSeries, borderColor: "rgba(168,85,247,0.9)", backgroundColor: "rgba(168,85,247,0.08)", borderWidth: 2, tension: 0.25, spanGaps: true, borderDash: [5, 3], yAxisID: "y1" },
+          ],
+        },
+        options: { responsive: true, scales: { y: { title: { display: true, text: "OI Change" } }, y1: { position: "right", grid: { drawOnChartArea: false }, title: { display: true, text: "Basis (pts)" } } } },
+      });
+
+      futuresPrevSnapshot = futuresCurrentSnapshot;
+      futuresCurrentSnapshot = snapshot;
+    }
+
+    function futuresProxyEndpoint() {
+      var manualUrl = byId("futProxyUrl").value.trim();
+      if (manualUrl) return manualUrl;
+      var optUrl = proxyEndpoint();
+      if (optUrl.indexOf("/nse/option-chain") !== -1) {
+        return optUrl.replace("/nse/option-chain", "/nse/futures").split("?")[0];
+      }
+      return optUrl.replace(/\/?$/, "").replace(/\/[^/]*$/, "/nse/futures");
+    }
+
+    async function refreshFutures() {
+      var symbol = byId("symbol").value;
+      var futUrl = futuresProxyEndpoint();
+      try {
+        var url = futUrl + "?symbol=" + encodeURIComponent(symbol);
+        var res = await fetch(url);
+        if (!res.ok) throw new Error("HTTP " + res.status);
+        var raw = await res.json();
+        var snapshot = normalizeFutures(raw);
+        if (!snapshot) throw new Error("No Index Futures contracts in response");
+        loadFuturesSnapshotHistory(snapshot.symbol);
+        renderFutures(snapshot);
+        byId("futuresLastFetch").textContent = "Futures: " + new Date().toLocaleTimeString();
+      } catch (err) {
+        byId("futuresLastFetch").textContent = "Futures failed: " + err.message;
+      }
+    }
+
+    function switchModule(module) {
+      activeModule = module;
+      var optEl = byId("options-module");
+      var futEl = byId("futures-module");
+      var tabOpt = byId("tabOptions");
+      var tabFut = byId("tabFutures");
+      if (module === "futures") {
+        optEl.style.display = "none";
+        futEl.style.display = "";
+        tabOpt.className = "tab-btn";
+        tabFut.className = "tab-btn tab-active";
+        if (futuresAutoTimer) clearInterval(futuresAutoTimer);
+        refreshFutures();
+        if (byId("autoRefresh").checked) {
+          futuresAutoTimer = setInterval(refreshFutures, 30000);
+        }
+      } else {
+        optEl.style.display = "";
+        futEl.style.display = "none";
+        tabOpt.className = "tab-btn tab-active";
+        tabFut.className = "tab-btn";
+        if (futuresAutoTimer) { clearInterval(futuresAutoTimer); futuresAutoTimer = null; }
+      }
+    }
+
+    byId("futRefreshBtn").addEventListener("click", refreshFutures);
+
+    // ========== END FUTURES MODULE ==========
+
+    byId("lastFetch").textContent = "Initializing dashboard...";
+    byId("proxyUrl").value = defaultProxyUrl();
+
+    loadExpiryList().then(refreshData).then(() => {
+      renderTradingView();
+      renderTradeJournal();
+    }).catch((err) => {
+      byId("lastFetch").textContent = `Startup failed: ${err.message}`;
+    });
+    syncAutoRefresh();
+  </script>
+</body>
+</html>
